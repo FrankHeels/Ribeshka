@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load static l10n %}
+{% block content %}
+  <header class="page-heading">
+    <p class="section-kicker">Розничная заявка</p>
+    <h1>Корзина</h1>
+    <p>Укажите желаемый вес в килограммах. Суммы предварительные.</p>
+  </header>
+  <div data-cart>
+  <div data-cart-notices>
+  {% if cart_error %}<div class="notice notice-error" role="alert" data-cart-form-error>{{ cart_error }}</div>{% endif %}
+  {% if cart_issues %}<div class="notice notice-error" role="alert"><h2>Проверьте состав корзины</h2><p>{{ cart_issues_message|default:"Некоторые позиции больше недоступны. Проверьте корзину." }}</p></div>{% endif %}
+  {% if cart_items and not cart_total_is_valid %}<div class="notice notice-error" role="alert"><p>Для одной или нескольких позиций изменились допустимый минимум или шаг веса. Исправьте вес позиции.</p></div>{% endif %}
+  </div>
+  <p class="muted-copy" data-cart-status role="status" hidden></p>
+  <div data-cart-body>
+
+  {% if cart_items %}
+    <div class="cart-table-wrap">
+      <table class="cart-table">
+        <thead><tr><th scope="col">Товар</th><th scope="col">Цена за кг</th><th scope="col">Вес, кг</th><th scope="col">Сумма</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr></thead>
+        <tbody>
+          {% for item in cart_items %}
+            <tr data-cart-line="{{ item.key }}">
+              <td data-label="Товар"><a href="{% url 'catalog:product' item.product.slug %}">{{ item.product.name }}</a></td>
+              <td data-label="Цена за кг" data-cart-price>{{ item.price_per_kg|floatformat:2 }} ₽</td>
+              <td data-label="Вес, кг">
+                <form id="cart-item-{{ item.key }}" method="post" action="{% url 'orders:cart' %}">{% csrf_token %}<input type="hidden" name="cart_line_id" value="{{ item.key }}"></form>
+                <label class="visually-hidden" for="weight-{{ item.key }}">Вес: {{ item.product.name }}, кг</label>
+                <input class="cart-weight" id="weight-{{ item.key }}" name="weight" form="cart-item-{{ item.key }}" type="number" inputmode="decimal" min="{{ item.minimum_weight|unlocalize }}" step="{{ item.weight_step|unlocalize }}" value="{% if item.weight_is_bound %}{{ item.weight_input_value }}{% else %}{{ item.weight|unlocalize }}{% endif %}" {% if item.weight_errors %}aria-invalid="true" aria-describedby="weight-error-{{ item.key }}"{% endif %} {% if not forms_enabled %}disabled{% endif %}>
+                <span class="field-error" id="weight-error-{{ item.key }}" data-cart-weight-error {% if not item.weight_errors %}hidden{% endif %}>{{ item.weight_errors.0 }}</span>
+              </td>
+              <td data-label="Сумма" data-cart-line-total>{% if item.line_total != None %}{{ item.line_total|floatformat:2 }} ₽{% else %}<span aria-label="Сумма недоступна">—</span>{% endif %}</td>
+              <td data-label="Действия">
+                <noscript><button class="text-button" type="submit" name="action" value="update" form="cart-item-{{ item.key }}" {% if not forms_enabled %}disabled{% endif %}>Сохранить вес</button></noscript>
+                <button class="text-button text-button-danger" type="submit" name="action" value="remove" form="cart-item-{{ item.key }}" formnovalidate {% if not forms_enabled %}disabled{% endif %}>Удалить</button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="cart-summary">
+      {% if cart_total_is_valid %}<p data-cart-total>Предварительная сумма <strong>{{ cart_total|floatformat:2 }} ₽</strong></p>{% endif %}
+      <p class="muted-copy">Стоимость доставки и окончательную сумму подтвердит продавец.</p>
+      {% if checkout_enabled %}<a class="button button-primary" href="{% url 'orders:checkout' %}">Перейти к заявке</a>{% else %}<button class="button button-primary" type="button" disabled>Перейти к заявке</button>{% endif %}
+    </div>
+  {% else %}
+    <div class="empty-state" role="status">
+      <h2>Корзина пуста</h2>
+      <p>Выберите товары из ассортимента на главной странице.</p>
+      <a class="button button-primary" href="{% url 'home' %}#assortment">Посмотреть ассортимент</a>
+    </div>
+  {% endif %}
+  </div>
+  </div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/cart.js' %}?v=2026-10-01-1" defer></script>{% endblock %}

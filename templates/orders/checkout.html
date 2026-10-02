@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+  <header class="page-heading">
+    <p class="section-kicker">Розничная заявка</p>
+    <h1>Оформление заявки</h1>
+    <p>Отправка заявки не списывает оплату. Продавец свяжется для подтверждения деталей.</p>
+  </header>
+  {% include "partials/error-summary.html" %}
+  {% if price_changed %}
+    <div class="notice notice-error" role="alert">
+      <h2>Состав или цена изменились</h2>
+      <p>Проверьте изменения и подтвердите корректный состав перед продолжением.</p>
+      {% if cart_changes %}<ul>{% for change in cart_changes %}<li>{{ change.message }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+  {% endif %}
+  {% if cart_issues %}<div class="notice notice-error" role="alert"><h2>Проверьте состав корзины</h2><p>{{ cart_issues_message }}</p><a href="{% url 'orders:cart' %}">Вернуться в корзину</a></div>{% endif %}
+  {% if cart_items and not cart_total_is_valid %}<div class="notice notice-error" role="alert"><p>Допустимый вес одной или нескольких позиций изменился. Исправьте его в <a href="{% url 'orders:cart' %}">корзине</a> перед продолжением.</p></div>{% endif %}
+  {% if cart_items %}
+    <div class="checkout-layout">
+      <section class="checkout-form-column" aria-labelledby="checkout-form-title">
+        <h2 id="checkout-form-title">Контакты и получение</h2>
+        {% if not forms_enabled %}<p class="form-status" role="status">Приём заявок пока не подключён. Поля отключены, данные не будут сохранены.</p>{% endif %}
+        <form class="stacked-form" method="post" action="{% url 'orders:checkout' %}">
+          {% csrf_token %}
+          <fieldset {% if not forms_enabled %}disabled{% endif %}>
+            <legend class="visually-hidden">Контактные данные</legend>
+            <div class="field">
+              <label for="id_name">Имя <span aria-hidden="true">*</span></label>
+              <input id="id_name" name="name" autocomplete="name" required value="{{ values.name|default_if_none:'' }}" {% if field_errors.name %}aria-invalid="true" aria-describedby="name-error"{% endif %}>
+              {% if field_errors.name %}<p class="field-error" id="name-error">{{ field_errors.name.0 }}</p>{% endif %}
+            </div>
+            <div class="field">
+              <label for="id_phone">Телефон <span aria-hidden="true">*</span></label>
+              <input id="id_phone" name="phone" type="tel" autocomplete="tel" required value="{{ values.phone|default_if_none:'' }}" {% if field_errors.phone %}aria-invalid="true" aria-describedby="phone-error"{% endif %}>
+              {% if field_errors.phone %}<p class="field-error" id="phone-error">{{ field_errors.phone.0 }}</p>{% endif %}
+            </div>
+            <div class="field">
+              <label for="id_email">Электронная почта <span class="field-hint">необязательно</span></label>
+              <input id="id_email" name="email" type="email" autocomplete="email" value="{{ values.email|default_if_none:'' }}" {% if field_errors.email %}aria-invalid="true" aria-describedby="email-error"{% endif %}>
+              {% if field_errors.email %}<p class="field-error" id="email-error">{{ field_errors.email.0 }}</p>{% endif %}
+            </div>
+            <fieldset class="nested-fieldset delivery-method">
+              <legend>Способ получения <span aria-hidden="true">*</span></legend>
+              <label class="choice"><input id="id_pickup_method" type="radio" name="pickup_method" value="delivery" required {% if values.pickup_method == "delivery" or not values.pickup_method %}checked{% endif %} {% if field_errors.pickup_method %}aria-invalid="true" aria-describedby="pickup-method-error"{% endif %}> <span>Доставка</span></label>
+              <label class="choice"><input id="id_pickup_method_pickup" type="radio" name="pickup_method" value="pickup" required {% if values.pickup_method == "pickup" %}checked{% endif %} {% if field_errors.pickup_method %}aria-invalid="true" aria-describedby="pickup-method-error"{% endif %}> <span>Самовывоз</span></label>
+              {% if field_errors.pickup_method %}<p class="field-error" id="pickup-method-error">{{ field_errors.pickup_method.0 }}</p>{% endif %}
+            </fieldset>
+            <div class="field delivery-address" data-delivery-address>
+              <label for="id_address">Адрес доставки <span class="field-hint">нужен при доставке</span></label>
+              <textarea id="id_address" name="address" rows="3" autocomplete="street-address" aria-describedby="{% if field_errors.address %}address-help address-error{% else %}address-help{% endif %}" {% if field_errors.address %}aria-invalid="true"{% endif %}>{{ values.address|default_if_none:'' }}</textarea>
+              <p class="field-help" id="address-help">Для самовывоза оставьте это поле пустым. Адрес и условия доставки подтвердит продавец.</p>
+              {% if field_errors.address %}<p class="field-error" id="address-error">{{ field_errors.address.0 }}</p>{% endif %}
+            </div>
+            <div class="field">
+              <label for="id_comment">Комментарий <span class="field-hint">необязательно</span></label>
+              <textarea id="id_comment" name="comment" rows="3">{{ values.comment|default_if_none:'' }}</textarea>
+            </div>
+            <label class="choice consent-choice">
+              <input id="id_consent" type="checkbox" name="consent" value="yes" required {% if values.consent %}checked{% endif %} {% if field_errors.consent %}aria-invalid="true" aria-describedby="consent-error"{% endif %}>
+              <span>Согласен на обработку данных в соответствии с <a href="{% url 'content:privacy' %}">политикой</a>.</span>
+            </label>
+            {% if field_errors.consent %}<p class="field-error" id="consent-error">{{ field_errors.consent.0 }}</p>{% endif %}
+            {% if price_changed %}<label class="choice consent-choice"><input id="id_confirm_updated_cart" type="checkbox" name="confirm_updated_cart" value="yes" required {% if field_errors.confirm_updated_cart %}aria-invalid="true" aria-describedby="updated-cart-error"{% endif %}> <span>Подтверждаю обновлённый состав заявки</span></label>{% endif %}
+            {% if field_errors.confirm_updated_cart %}<p class="field-error" id="updated-cart-error">{{ field_errors.confirm_updated_cart.0 }}</p>{% endif %}
+            {% if forms_enabled %}<button class="button button-primary" type="submit">Отправить заявку</button>{% else %}<button class="button button-primary" type="submit" disabled>Отправить заявку</button>{% endif %}
+          </fieldset>
+        </form>
+      </section>
+      <aside class="checkout-summary" aria-labelledby="checkout-summary-title">
+        <h2 id="checkout-summary-title">Состав заявки</h2>
+        <ul class="summary-list">
+          {% for item in cart_items %}
+            <li><span>{{ item.product.name }}<small>{{ item.weight }} кг × {{ item.price_per_kg|floatformat:2 }} ₽/кг</small></span><strong>{% if item.line_total != None %}{{ item.line_total|floatformat:2 }} ₽{% else %}—{% endif %}</strong></li>
+          {% endfor %}
+        </ul>
+        {% if cart_total_is_valid %}<p class="summary-total"><span>Предварительная сумма</span><strong>{{ cart_total|floatformat:2 }} ₽</strong></p>{% endif %}
+        <p class="field-help">Фактический вес, стоимость доставки и окончательный итог согласуются с продавцом.</p>
+      </aside>
+    </div>
+  {% else %}
+    <div class="empty-state" role="status">
+      <h2>Сначала добавьте товары</h2>
+      <p>Чтобы оформить розничную заявку, выберите товары из ассортимента.</p>
+      <a class="button button-primary" href="{% url 'home' %}#assortment">Посмотреть ассортимент</a>
+    </div>
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+  <script src="{% static 'js/checkout.js' %}" defer></script>
+{% endblock %}

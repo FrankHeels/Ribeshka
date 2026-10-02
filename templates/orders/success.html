@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="success-panel" aria-labelledby="success-title">
+    <p class="section-kicker">Розничная заявка</p>
+    <h1 id="success-title">Заявка принята</h1>
+    {% if order_number %}<p>Номер заявки: <strong>{{ order_number }}</strong></p>{% endif %}
+    <p>Продавец подтвердит состав и условия получения. Оплата на сайте не проводилась.</p>
+    <a class="button button-primary" href="{% url 'home' %}#assortment">Вернуться к ассортименту</a>
+  </section>
+{% endblock %}
