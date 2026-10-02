@@ -1,0 +1,15 @@
+<details class="assortment-menu">
+  <summary><span class="assortment-label">Ассортимент</span><span class="assortment-chevron" aria-hidden="true"></span></summary>
+  <div class="assortment-menu-panel">
+    <a class="assortment-menu-all" href="{% url 'home' %}#assortment">Все категории</a>
+    {% if navigation_categories %}
+      <ul>
+        {% for category in navigation_categories %}
+          <li><a href="{% url 'catalog:category' category.slug %}">{{ category.name }}</a></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>Опубликованные категории появятся здесь.</p>
+    {% endif %}
+  </div>
+</details>

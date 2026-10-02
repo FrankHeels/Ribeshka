@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+  <header class="page-heading">
+    <p class="section-kicker">Категория</p>
+    <h1>{{ category.name }}</h1>
+    {% if category.description %}<p>{{ category.description }}</p>{% endif %}
+  </header>
+  {% if catalog_error %}<div class="notice notice-error" role="alert">{{ catalog_error }}</div>{% endif %}
+  {% if products %}
+    <div class="product-grid">{% for product in products %}{% include "partials/product-card.html" with product=product %}{% endfor %}</div>
+  {% else %}
+    <div class="empty-state" role="status"><h2>Товаров пока нет</h2><p>В этой категории ещё нет опубликованных товаров.</p><a class="text-link" href="{% url 'home' %}#assortment">Другие категории</a></div>
+  {% endif %}
+  {% if page_obj and page_obj.has_other_pages %}
+    <nav class="pagination" aria-label="Страницы категории">
+      {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">Предыдущая</a>{% endif %}
+      <span>Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Следующая</a>{% endif %}
+    </nav>
+  {% endif %}
+{% endblock %}

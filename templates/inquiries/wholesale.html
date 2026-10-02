@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+  <header class="page-heading page-heading-narrow">
+    <p class="section-kicker">Отдельная форма</p>
+    <h1>Оптовый запрос</h1>
+    <p>Опишите, что вам нужно, и оставьте контакт для связи. Ассортимент, объём и условия продавец обсудит отдельно.</p>
+  </header>
+  {% include "partials/error-summary.html" %}
+  <section class="form-panel" aria-labelledby="wholesale-form-title">
+    <h2 id="wholesale-form-title">Контакты и потребность</h2>
+    {% if not forms_enabled %}<p class="form-status" role="status">Приём запросов пока не подключён. Поля отключены, введённые данные не будут сохранены.</p>{% endif %}
+    <form class="stacked-form stacked-form-narrow" method="post" action="{% url 'inquiries:wholesale' %}">
+      {% csrf_token %}
+      <fieldset {% if not forms_enabled %}disabled{% endif %}>
+        <div class="field">
+          <label for="id_contact_name">Контактное лицо <span aria-hidden="true">*</span></label>
+          <input id="id_contact_name" name="contact_name" autocomplete="name" required value="{{ values.contact_name|default_if_none:'' }}" {% if field_errors.contact_name %}aria-invalid="true" aria-describedby="contact-name-error"{% endif %}>
+          {% if field_errors.contact_name %}<p class="field-error" id="contact-name-error">{{ field_errors.contact_name.0 }}</p>{% endif %}
+        </div>
+        <div class="field">
+          <label for="id_company">Компания <span class="field-hint">необязательно</span></label>
+          <input id="id_company" name="company" autocomplete="organization" value="{{ values.company|default_if_none:'' }}">
+        </div>
+        <div class="field">
+          <label for="id_phone">Телефон <span aria-hidden="true">*</span></label>
+          <input id="id_phone" name="phone" type="tel" autocomplete="tel" required value="{{ values.phone|default_if_none:'' }}" {% if field_errors.phone %}aria-invalid="true" aria-describedby="wholesale-phone-error"{% endif %}>
+          {% if field_errors.phone %}<p class="field-error" id="wholesale-phone-error">{{ field_errors.phone.0 }}</p>{% endif %}
+        </div>
+        <div class="field">
+          <label for="id_email">Электронная почта <span class="field-hint">необязательно</span></label>
+          <input id="id_email" name="email" type="email" autocomplete="email" value="{{ values.email|default_if_none:'' }}" {% if field_errors.email %}aria-invalid="true" aria-describedby="wholesale-email-error"{% endif %}>
+          {% if field_errors.email %}<p class="field-error" id="wholesale-email-error">{{ field_errors.email.0 }}</p>{% endif %}
+        </div>
+        <div class="field">
+          <label for="id_need">Опишите потребность <span aria-hidden="true">*</span></label>
+          <textarea id="id_need" name="need" rows="6" required {% if field_errors.need %}aria-invalid="true" aria-describedby="need-error"{% endif %}>{{ values.need|default_if_none:'' }}</textarea>
+          {% if field_errors.need %}<p class="field-error" id="need-error">{{ field_errors.need.0 }}</p>{% endif %}
+        </div>
+        <label class="choice consent-choice">
+          <input id="id_consent" type="checkbox" name="consent" value="yes" required {% if values.consent %}checked{% endif %} {% if field_errors.consent %}aria-invalid="true" aria-describedby="wholesale-consent-error"{% endif %}>
+          <span>Согласен на обработку данных в соответствии с <a href="{% url 'content:privacy' %}">политикой</a>.</span>
+        </label>
+        {% if field_errors.consent %}<p class="field-error" id="wholesale-consent-error">{{ field_errors.consent.0 }}</p>{% endif %}
+        {% if forms_enabled %}<button class="button button-primary" type="submit">Отправить запрос</button>{% else %}<button class="button button-primary" type="submit" disabled>Отправить запрос</button>{% endif %}
+      </fieldset>
+    </form>
+  </section>
+{% endblock %}

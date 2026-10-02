@@ -1,0 +1,95 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#18110D">
+    <meta name="description" content="{{ meta_description|default:'Ассортимент рыбной продукции и информация о способах заказа.' }}">
+    {% if meta_robots %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
+    <title>{% if seo_title %}{{ seo_title }}{% elif page_title and page_title != "Рыбная продукция" %}{{ page_title }} — Калининградская рыбёшка{% else %}Калининградская рыбёшка{% endif %}</title>
+    <link rel="icon" type="image/png" href="{% static 'img/brand-logo.png' %}">
+    <link rel="preload" href="{% static 'fonts/cormorant-garamond-normal-cyrillic.woff2' %}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{% static 'fonts/golos-text-normal-cyrillic.woff2' %}" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{% static 'css/site.css' %}?v=2026-09-28-2">
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body class="site-body {% block body_class %}{% endblock %}">
+    <a class="skip-link" href="#main-content">Перейти к содержимому</a>
+    <header class="site-header">
+      <div class="site-header-inner page-width">
+        <a class="site-name" href="{% url 'home' %}" aria-label="Калининградская рыбёшка — главная">
+          <img class="brand-logo" src="{% static 'img/brand-logo.png' %}" alt="Калининградская рыбёшка" width="1362" height="1155">
+        </a>
+        <nav class="site-navigation" aria-label="Основная навигация">
+          {% include "partials/assortment-menu.html" %}
+          <a href="{% url 'inquiries:wholesale' %}" {% if request.path == '/wholesale/' %}aria-current="page"{% endif %}>Оптовый запрос</a>
+          <a href="{% url 'content:about' %}" {% if request.path == '/about/' %}aria-current="page"{% endif %}>О компании</a>
+          <a href="{% url 'content:delivery' %}" {% if request.path == '/delivery/' %}aria-current="page"{% endif %}>Доставка</a>
+          <a href="{% url 'content:contacts' %}" {% if request.path == '/contacts/' %}aria-current="page"{% endif %}>Контакты</a>
+        </nav>
+        <div class="header-actions">
+          <a class="header-cart" href="{% url 'orders:cart' %}" aria-label="Корзина{% if cart_count %}, товаров: {{ cart_count }}{% endif %}">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16l-1.3 12H5.3L4 7ZM9 8V6a3 3 0 0 1 6 0v2"/></svg>
+            <span>Корзина</span>{% if cart_count %}<span class="cart-count">{{ cart_count }}</span>{% endif %}
+          </a>
+          <details class="mobile-menu">
+            <summary aria-label="Меню"><span>Меню</span><span class="menu-lines" aria-hidden="true"></span></summary>
+            <nav aria-label="Мобильная навигация">
+              {% include "partials/assortment-menu.html" %}
+              <a href="{% url 'inquiries:wholesale' %}" {% if request.path == '/wholesale/' %}aria-current="page"{% endif %}>Оптовый запрос</a>
+              <a href="{% url 'content:about' %}" {% if request.path == '/about/' %}aria-current="page"{% endif %}>О компании</a>
+              <a href="{% url 'content:delivery' %}" {% if request.path == '/delivery/' %}aria-current="page"{% endif %}>Доставка</a>
+              <a href="{% url 'content:contacts' %}" {% if request.path == '/contacts/' %}aria-current="page"{% endif %}>Контакты</a>
+            </nav>
+          </details>
+        </div>
+      </div>
+    </header>
+
+    {% if breadcrumbs %}
+      <nav class="breadcrumbs page-width" aria-label="Хлебные крошки">
+        <ol>
+          <li><a href="{% url 'home' %}">Главная</a></li>
+          {% for crumb in breadcrumbs %}
+            <li>{% if crumb.url %}<a href="{{ crumb.url }}">{{ crumb.label }}</a>{% else %}<span aria-current="page">{{ crumb.label }}</span>{% endif %}</li>
+          {% endfor %}
+        </ol>
+      </nav>
+    {% endif %}
+
+    <main id="main-content" class="page-width main-content">
+      {% if messages %}
+        <div class="message-list" aria-live="polite">
+          {% for message in messages %}<p class="message message-{{ message.tags }}">{{ message }}</p>{% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+      <div class="page-width footer-inner">
+        <div class="footer-summary">
+          <a class="site-name footer-site-name" href="{% url 'home' %}" aria-label="Калининградская рыбёшка — главная"><img class="brand-logo" src="{% static 'img/brand-logo.png' %}" alt="Калининградская рыбёшка" width="1362" height="1155" loading="lazy"></a>
+          <p>Выберите продукцию и оставьте заявку. Состав, фактический вес и условия продажи продавец подтвердит лично.</p>
+        </div>
+        <nav class="footer-navigation" aria-label="Разделы сайта">
+          <span class="footer-heading">Разделы</span>
+          <a href="{% url 'home' %}#assortment">Ассортимент</a>
+          <a href="{% url 'inquiries:wholesale' %}">Оптовый запрос</a>
+          <a href="{% url 'content:about' %}">О компании</a>
+          <a href="{% url 'content:delivery' %}">Доставка и самовывоз</a>
+        </nav>
+        <nav class="footer-navigation" aria-label="Информация">
+          <span class="footer-heading">Информация</span>
+          <a href="{% url 'content:contacts' %}">Контакты</a>
+          <a href="{% url 'content:privacy' %}">Обработка персональных данных</a>
+          <a href="{% url 'orders:cart' %}">Корзина</a>
+        </nav>
+      </div>
+      <div class="page-width footer-bottom"><span>Калининградская рыбёшка</span><span>Заявка не является оплатой на сайте.</span></div>
+    </footer>
+    <script src="{% static 'js/site.js' %}?v=2026-09-28-2" defer></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

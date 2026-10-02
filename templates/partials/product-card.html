@@ -1,0 +1,14 @@
+<article class="product-card">
+  <a class="product-card-image" href="{% url 'catalog:product' product.slug %}">
+    {% if product.primary_photo %}
+      <img src="{{ product.primary_photo.url }}" alt="{{ product.primary_photo.alt_text|default:product.name }}" loading="lazy" decoding="async" width="640" height="800">
+    {% else %}
+      <span class="image-placeholder" role="img" aria-label="Фотография товара не добавлена"><span>Фотография не добавлена</span></span>
+    {% endif %}
+  </a>
+  <div class="product-card-copy">
+    <h3><a href="{% url 'catalog:product' product.slug %}">{{ product.name }}</a></h3>
+    {% if product.short_description and not compact %}<p>{{ product.short_description }}</p>{% endif %}
+    {% if product.price_per_kg %}<p class="product-card-price">{{ product.price_per_kg|floatformat:2 }} ₽ <span>за кг</span></p>{% endif %}
+  </div>
+</article>

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% block content %}
+  {% include "partials/error-summary.html" %}
+  {% if cart_issues %}<div class="notice notice-error" role="alert"><h2>Проверьте состав корзины</h2><p>{{ cart_issues_message }}</p></div>{% endif %}
+  <article class="product-detail">
+    <div class="product-gallery" aria-label="Фотографии товара">
+      {% if product.photos %}
+        {% for photo in product.photos %}<figure>{% if photo.url %}<img src="{{ photo.url }}" alt="{{ photo.alt_text|default:product.name }}" {% if forloop.first %}fetchpriority="high"{% else %}loading="lazy"{% endif %} decoding="async" width="960" height="1200">{% else %}<span class="image-placeholder" role="img" aria-label="Фотография товара не добавлена"><span>Фотография не добавлена</span></span>{% endif %}</figure>{% endfor %}
+      {% else %}<div class="image-placeholder product-placeholder" role="img" aria-label="Фотография товара не добавлена"><span>Фотография не добавлена</span></div>{% endif %}
+    </div>
+    <div class="product-detail-copy">
+      <p class="section-kicker">Рыбная продукция</p>
+      <h1>{{ product.name }}</h1>
+      {% if product.short_description %}<p class="product-intro">{{ product.short_description }}</p>{% endif %}
+      {% if product.description %}<div class="rich-copy">{{ product.description|linebreaks }}</div>{% endif %}
+      {% if product.price_per_kg %}<p class="detail-price">{{ product.price_per_kg|floatformat:2 }} ₽ <span>за кг</span></p>{% endif %}
+      {% if estimated_total %}<p class="estimate-line">Предварительная сумма: <strong>{{ estimated_total|floatformat:2 }} ₽</strong></p>{% endif %}
+      <p class="notice">Итоговый вес и сумму продавец подтвердит после заявки.</p>
+      <form class="product-order-form" method="post" action="{% url 'orders:cart' %}">
+        {% csrf_token %}
+        <fieldset {% if not forms_enabled %}disabled{% endif %}>
+          <legend>{% if is_in_cart %}Обновить вес в корзине{% else %}Добавить в корзину{% endif %}</legend>
+          <input type="hidden" name="product_id" value="{{ product.id }}">
+          <div class="field">
+            <label for="product-weight">Желаемый вес, кг</label>
+            <input id="product-weight" name="weight" type="number" inputmode="decimal" min="{{ product.minimum_weight|unlocalize }}" step="{{ product.weight_step|unlocalize }}" value="{{ initial_weight|unlocalize }}" required {% if field_errors.weight %}aria-invalid="true" aria-describedby="product-weight-error"{% endif %}>
+            {% if field_errors.weight %}<p class="field-error" id="product-weight-error">{{ field_errors.weight.0 }}</p>{% endif %}
+          </div>
+          {% if forms_enabled %}<button class="button button-primary" type="submit" name="action" value="add">{% if is_in_cart %}Обновить вес в корзине{% else %}Добавить в корзину{% endif %}</button>{% else %}<button class="button button-primary" type="submit" disabled>Добавить в корзину</button>{% endif %}
+        </fieldset>
+        {% if not forms_enabled %}<p class="form-status" role="status">Добавление в корзину ещё не подключено.</p>{% endif %}
+      </form>
+    </div>
+  </article>
+{% endblock %}

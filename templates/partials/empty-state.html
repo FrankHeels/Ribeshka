@@ -1,0 +1,5 @@
+<div class="empty-state{% if modifier %} {{ modifier }}{% endif %}" role="status">
+  <h2>{{ empty_title }}</h2>
+  <p>{{ empty_text }}</p>
+  {% if empty_link_url %}<a class="text-link" href="{{ empty_link_url }}">{{ empty_link_label }}</a>{% endif %}
+</div>

@@ -1,0 +1,9 @@
+{% if categories %}
+  <ul class="category-list">
+    {% for category in categories %}
+      <li><a href="{% url 'catalog:category' category.slug %}">{{ category.name }}</a></li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="empty-inline" role="status">Категории появятся после заполнения каталога.</div>
+{% endif %}

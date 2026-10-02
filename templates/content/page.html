@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+  <header class="page-heading page-heading-narrow">
+    <p class="section-kicker">Информация</p>
+    <h1>{{ page_title }}</h1>
+    {% if page_lead.title or page_lead.body %}<div class="page-lead">{% if page_lead.title %}<p>{{ page_lead.title }}</p>{% endif %}{% if page_lead.body %}<div class="rich-copy">{{ page_lead.body|linebreaks }}</div>{% endif %}</div>{% endif %}
+  </header>
+  {% if content_sections %}
+    <article class="content-article">
+      {% for section in content_sections %}
+        <section>{% if section.title %}<h2>{{ section.title }}</h2>{% endif %}{% if section.body %}<div class="rich-copy">{{ section.body|linebreaks }}</div>{% endif %}</section>
+      {% endfor %}
+    </article>
+  {% elif not page_lead.title and not page_lead.body %}
+    <div class="empty-state info-pending" role="status">
+      <h2>Материалы ещё не добавлены</h2>
+      <p>{{ content_notice }}</p>
+      <a class="text-link" href="{% url 'home' %}#assortment">Посмотреть ассортимент</a>
+    </div>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+  <header class="page-heading">
+    <p class="section-kicker">Ассортимент</p>
+    <h1>Каталог рыбной продукции</h1>
+    <p>{% if catalog_ready %}Найдите товар по названию или выберите категорию.{% else %}Ассортимент и цены публикуются после подтверждения материалов.{% endif %}</p>
+  </header>
+
+  {% if catalog_error %}<div class="notice notice-error" role="alert">{{ catalog_error }}</div>{% endif %}
+
+  <div class="catalog-layout">
+    <aside class="catalog-sidebar" aria-labelledby="catalog-categories-title">
+      <h2 id="catalog-categories-title">Категории</h2>
+      {% include "partials/category-list.html" with categories=categories %}
+    </aside>
+    <div class="catalog-results">
+      <form class="catalog-controls" method="get" action="{% url 'catalog:index' %}" role="search">
+        <div class="field field-search">
+          <label for="catalog-search">Поиск по названию</label>
+          <input id="catalog-search" name="q" type="search" value="{{ search_query }}" placeholder="Название товара" {% if not catalog_ready %}disabled{% endif %}>
+        </div>
+        <div class="field field-sort">
+          <label for="catalog-sort">Сортировка</label>
+          <select id="catalog-sort" name="sort" {% if not catalog_ready %}disabled{% endif %}>
+            <option value="name" {% if sort == "name" %}selected{% endif %}>По названию</option>
+            <option value="price_asc" {% if sort == "price_asc" %}selected{% endif %}>Сначала дешевле</option>
+            <option value="price_desc" {% if sort == "price_desc" %}selected{% endif %}>Сначала дороже</option>
+          </select>
+        </div>
+        <button class="button button-secondary" type="submit" {% if not catalog_ready %}disabled{% endif %}>Показать</button>
+      </form>
+      {% if not catalog_ready %}<p class="controls-note">Поиск и сортировка станут доступны после публикации ассортимента.</p>{% endif %}
+
+      {% if products %}
+        <div class="product-grid">
+          {% for product in products %}{% include "partials/product-card.html" with product=product %}{% endfor %}
+        </div>
+      {% elif search_query and catalog_ready %}
+        <div class="empty-state" role="status"><h2>Ничего не найдено</h2><p>Измените запрос или откройте список категорий.</p></div>
+      {% elif not catalog_ready %}
+        <div class="empty-state" role="status"><h2>Каталог пока не заполнен</h2><p>Опубликованные категории и товары появятся здесь после добавления подтверждённых материалов.</p></div>
+      {% else %}
+        <div class="empty-state" role="status"><h2>В этой категории пока нет товаров</h2><p>Посмотрите другие категории каталога.</p></div>
+      {% endif %}
+
+      {% if page_obj and page_obj.has_other_pages %}
+        <nav class="pagination" aria-label="Страницы каталога">
+          {% if page_obj.has_previous %}<a href="?q={{ search_query|urlencode }}&amp;sort={{ sort|urlencode }}&amp;page={{ page_obj.previous_page_number }}">Предыдущая</a>{% endif %}
+          <span>Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+          {% if page_obj.has_next %}<a href="?q={{ search_query|urlencode }}&amp;sort={{ sort|urlencode }}&amp;page={{ page_obj.next_page_number }}">Следующая</a>{% endif %}
+        </nav>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

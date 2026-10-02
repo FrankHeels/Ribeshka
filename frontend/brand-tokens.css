@@ -1,0 +1,44 @@
+/* Dark walnut direction approved in the redesign brief, 2026-09-27. */
+:root {
+  color-scheme: dark;
+  --color-walnut: #18110d;
+  --color-espresso: #231811;
+  --color-ivory: #f4ead8;
+  --color-brass: #d7b77b;
+  --color-page: var(--color-walnut);
+  --color-text: var(--color-ivory);
+  --color-action: var(--color-brass);
+  --color-action-text: #21160f;
+  --color-action-hover: #ebd0a0;
+  --color-accent: var(--color-brass);
+  --color-line: rgb(215 183 123 / 24%);
+  --color-text-muted: #c8b9a2;
+  --color-on-dark: var(--color-ivory);
+  --color-on-dark-muted: var(--color-text-muted);
+  --color-surface: #281e17;
+  --color-media: #211812;
+  --color-control-border: #887253;
+  --color-error: #ffb5a5;
+  --color-error-surface: #39221c;
+  --color-success: #bed2ad;
+  --color-disabled: #342a22;
+  --wood-main: url("../img/backgrounds/smoked-walnut.webp");
+  --wood-warm: url("../img/backgrounds/roasted-oak.webp");
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Golos Text", Arial, sans-serif;
+  --font-label: var(--font-body);
+  --text-hero: clamp(3.75rem, 6.4vw, 6.5rem);
+  --text-h2: clamp(3rem, 4.6vw, 4.25rem);
+  --text-h3: 1.875rem;
+  --text-body: 1rem;
+  --text-small: .875rem;
+  --text-label: .75rem;
+  --container: 76rem;
+  --gutter: clamp(1.5rem, 4vw, 5rem);
+  --section-y: clamp(4rem, 7vw, 6rem);
+  --reading-width: 46rem;
+  --radius: .25rem;
+  --header-height: 88px;
+  --motion-fast: 240ms ease;
+  --motion: 600ms cubic-bezier(.22, 1, .36, 1);
+}
