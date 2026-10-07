@@ -6,10 +6,7 @@ from django.test import Client, RequestFactory, TestCase
 from django.urls import reverse
 
 from catalog.models import Category, Product
-from inquiries.models import Inquiry
-from integrations.models import NotificationOutbox
 from orders.cart import CART_SESSION_KEY, cart_count, get_cart_state
-from orders.models import Order
 
 
 class SessionCartTests(TestCase):
@@ -46,7 +43,7 @@ class SessionCartTests(TestCase):
             is_published=published,
         )
 
-    def add(self, client, product=None, weight="0.1", **extra):
+    def add(self, client, product=None, weight="1", **extra):
         product = product or self.product
         return client.post(
             reverse("orders:cart"),
@@ -68,40 +65,51 @@ class SessionCartTests(TestCase):
         session[CART_SESSION_KEY] = dict(lines)
         session.save()
 
-    def test_add_redirects_persists_and_readding_replaces_weight(self):
+    def test_add_redirects_persists_and_readding_accumulates_weight(self):
         client = Client()
         unrelated = client.session
         unrelated["unrelated"] = "preserve me"
         unrelated.save()
 
-        response = self.add(client, weight="0.2")
+        response = self.add(client, weight="2")
         self.assertRedirects(response, reverse("orders:cart"), fetch_redirect_response=False)
-        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "0.2"})
+        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "2"})
 
-        response = self.add(client, weight="0.3")
+        response = self.add(client, weight="3")
         self.assertRedirects(response, reverse("orders:cart"), fetch_redirect_response=False)
-        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "0.3"})
+        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "5"})
         self.assertEqual(client.session["unrelated"], "preserve me")
 
         cart = client.get(reverse("orders:cart"))
-        self.assertContains(cart, 'value="0.3"')
-        self.assertContains(cart, "30,00 ₽")
+        self.assertContains(cart, 'value="5"')
+        self.assertContains(cart, "500,00 ₽")
         self.assertContains(cart, 'aria-label="Корзина, товаров: 1"')
 
-    def test_product_page_uses_saved_weight_when_the_item_is_already_in_cart(self):
+    def test_product_page_starts_at_one_and_keeps_add_copy_when_item_is_in_cart(self):
         client = Client()
-        response = self.add(client, weight="0.3")
+        response = self.add(client, weight="3")
         self.assertEqual(response.status_code, 302)
 
         page = client.get(reverse("catalog:product", args=(self.product.slug,)))
         self.assertContains(page, 'id="product-weight"')
-        self.assertContains(page, 'value="0.3"')
+        self.assertContains(page, 'value="1"')
+        self.assertContains(page, "<legend>Добавить в корзину</legend>", html=True)
+        self.assertContains(
+            page,
+            '<button class="button button-primary" type="submit" name="action" value="add">Добавить в корзину</button>',
+            html=True,
+        )
+        self.assertNotContains(page, "Обновить вес в корзине")
+
+    def test_product_page_defaults_to_one_kilogram(self):
+        page = Client().get(reverse("catalog:product", args=(self.product.slug,)))
+        self.assertContains(page, 'inputmode="numeric" min="1" max="99999" step="1" value="1"')
 
     def test_cart_isolated_between_sessions(self):
         first, second = Client(), Client()
-        self.add(first, weight="0.4")
+        self.add(first, weight="3")
 
-        self.assertEqual(self.cart_lines(first), {str(self.product.pk): "0.4"})
+        self.assertEqual(self.cart_lines(first), {str(self.product.pk): "3"})
         self.assertEqual(self.cart_lines(second), {})
         self.assertContains(second.get(reverse("orders:cart")), "Корзина пуста")
 
@@ -113,7 +121,7 @@ class SessionCartTests(TestCase):
 
         denied = client.post(
             reverse("orders:cart"),
-            {"action": "add", "product_id": str(self.product.pk), "weight": "0.1"},
+            {"action": "add", "product_id": str(self.product.pk), "weight": "1"},
         )
         self.assertEqual(denied.status_code, 403)
 
@@ -122,28 +130,33 @@ class SessionCartTests(TestCase):
             {
                 "action": "add",
                 "product_id": str(self.product.pk),
-                "weight": "0.1",
+                "weight": "1",
                 "csrfmiddlewaretoken": token,
             },
         )
         self.assertEqual(accepted.status_code, 302)
-        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "0.1"})
+        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "1"})
 
-    def test_two_rounded_line_totals_are_added(self):
+    def test_line_totals_are_added(self):
         second_product = self.make_product()
+        first_product = self.make_product(name="Первая тестовая рыба", slug="session-cart-round-a")
         client = Client()
-        self.add(client, self.make_product(name="Первая дробная рыба", slug="session-cart-round-a"), "0.1")
-        self.add(client, second_product, "0.1")
+        self.add(client, first_product, "1")
+        self.add(client, second_product, "1")
 
+        self.assertEqual(
+            self.cart_lines(client),
+            {str(first_product.pk): "1", str(second_product.pk): "1"},
+        )
         response = client.get(reverse("orders:cart"))
-        self.assertContains(response, "2,02 ₽")
-        self.assertContains(response, "1,01 ₽", count=2)
+        self.assertContains(response, "20,10 ₽")
+        self.assertContains(response, 'data-cart-line-total-value data-cart-line-total-available="true">10,05 ₽', count=2)
 
     def test_client_price_and_total_fields_are_ignored(self):
         client = Client()
         response = self.add(
             client,
-            weight="0.2",
+            weight="2",
             price_per_kg="0.01",
             line_total="0.00",
             total="0.00",
@@ -151,37 +164,31 @@ class SessionCartTests(TestCase):
         self.assertEqual(response.status_code, 302)
         page = client.get(reverse("orders:cart"))
         self.assertContains(page, "100,00 ₽")
-        self.assertContains(page, "20,00 ₽")
+        self.assertContains(page, "200,00 ₽")
 
     def test_current_price_is_reloaded_for_existing_session_line(self):
         client = Client()
-        self.add(client, weight="0.2")
+        self.add(client, weight="2")
         Product.objects.filter(pk=self.product.pk).update(price_per_kg=Decimal("125.50"))
 
         page = client.get(reverse("orders:cart"))
         self.assertContains(page, "125,50 ₽")
-        self.assertContains(page, "25,10 ₽")
+        self.assertContains(page, "251,00 ₽")
 
-    def test_offset_minimum_and_step_are_checked_as_exact_decimals(self):
+    def test_integer_weights_ignore_legacy_product_minimum_and_step(self):
         product = self.make_product(
-            name="Рыба с дробным минимумом",
+            name="Рыба с legacy минимумом и шагом",
             slug="session-cart-offset-step",
-            minimum="0.15",
-            step="0.1",
+            minimum="10.5",
+            step="3.25",
         )
         client = Client()
 
-        for weight in ("-0.05", "0", "0.05", "0.2", "0.3"):
-            with self.subTest(weight=weight):
-                response = self.add(client, product, weight)
-                self.assertEqual(response.status_code, 400)
-                self.assertNotIn(str(product.pk), self.cart_lines(client))
-
-        for weight in ("0.15", "0.25", "0.35"):
-            with self.subTest(weight=weight):
+        for weight, expected_weight in (("1", "1"), ("2", "3"), ("3", "6")):
+            with self.subTest(weight=weight, expected_weight=expected_weight):
                 response = self.add(client, product, weight)
                 self.assertEqual(response.status_code, 302)
-                self.assertEqual(self.cart_lines(client)[str(product.pk)], weight)
+                self.assertEqual(self.cart_lines(client)[str(product.pk)], expected_weight)
 
     def test_invalid_add_keeps_raw_input_and_links_summary_to_weight_control(self):
         client = Client()
@@ -191,6 +198,7 @@ class SessionCartTests(TestCase):
         self.assertContains(response, 'id="product-weight"', status_code=400)
         self.assertContains(response, 'value="0"', status_code=400)
         self.assertContains(response, 'href="#product-weight"', status_code=400)
+        self.assertContains(response, "Минимальный вес — 1 кг.", status_code=400)
         self.assertEqual(self.cart_lines(client), {})
 
     def test_invalid_add_still_reports_other_unavailable_lines_removed_from_cart(self):
@@ -199,7 +207,7 @@ class SessionCartTests(TestCase):
             name="Недоступная тестовая рыба",
             slug="session-cart-now-hidden",
         )
-        self.add(client, hidden, "0.1")
+        self.add(client, hidden, "1")
         Product.objects.filter(pk=hidden.pk).update(is_published=False)
 
         response = self.add(client, self.product, "0")
@@ -209,24 +217,38 @@ class SessionCartTests(TestCase):
         self.assertNotContains(response, hidden.name, status_code=400)
         self.assertNotIn(str(hidden.pk), self.cart_lines(client))
 
-    def test_decimal_precision_bounds_and_non_finite_values_are_rejected(self):
+    def test_fractional_out_of_range_and_non_finite_weights_are_rejected(self):
         client = Client()
         product = self.make_product(
-            name="Точный вес",
+            name="Целый вес",
             slug="session-cart-precision",
-            minimum="0.001",
-            step="0.001",
         )
 
-        for weight in ("100000", "1.0000", "NaN", "Infinity", "-Infinity", "one kg"):
+        for weight in ("-1", "0", "0.5", "1.5", "1.0000", "100000", "NaN", "Infinity", "-Infinity", "one kg"):
             with self.subTest(weight=weight):
                 response = self.add(client, product, weight)
                 self.assertEqual(response.status_code, 400)
                 self.assertNotIn(str(product.pk), self.cart_lines(client))
 
-        accepted = self.add(client, product, "99999.999")
+        accepted = self.add(client, product, "99999")
         self.assertEqual(accepted.status_code, 302)
-        self.assertEqual(self.cart_lines(client)[str(product.pk)], "99999.999")
+        self.assertEqual(self.cart_lines(client)[str(product.pk)], "99999")
+
+    def test_additive_weight_overflow_preserves_the_existing_cart(self):
+        client = Client()
+        other_product = self.make_product(name="Другая тестовая рыба", slug="session-cart-overflow-other")
+        original_lines = {str(self.product.pk): "99999", str(other_product.pk): "7"}
+        self.set_cart_lines(client, original_lines)
+
+        response = self.add(client, weight="1")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            "Общий вес товара не может превышать 99 999 кг.",
+            status_code=400,
+        )
+        self.assertEqual(self.cart_lines(client), original_lines)
 
     def test_scientific_decimal_input_is_saved_as_fixed_point(self):
         client = Client()
@@ -238,21 +260,38 @@ class SessionCartTests(TestCase):
 
     def test_invalid_update_preserves_saved_weight_and_shows_raw_input(self):
         client = Client()
-        self.add(client, weight="0.2")
-        response = client.post(
+        self.add(client, weight="2")
+        for weight in ("0", "-1", "1.5"):
+            with self.subTest(weight=weight):
+                response = client.post(
+                    reverse("orders:cart"),
+                    {"action": "update", "cart_line_id": str(self.product.pk), "weight": weight},
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertContains(response, f'value="{weight}"', status_code=400)
+                self.assertEqual(self.cart_lines(client), {str(self.product.pk): "2"})
+
+    def test_cart_update_replaces_the_accumulated_weight_absolutely(self):
+        client = Client()
+        self.add(client, weight="2")
+        self.add(client, weight="3")
+        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "5"})
+
+        updated = client.post(
             reverse("orders:cart"),
-            {"action": "update", "cart_line_id": str(self.product.pk), "weight": "0"},
+            {"action": "update", "cart_line_id": str(self.product.pk), "weight": "4"},
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertContains(response, 'value="0"', status_code=400)
-        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "0.2"})
+        self.assertEqual(updated.status_code, 302)
+        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "4"})
+        self.assertContains(client.get(reverse("orders:cart")), "400,00 ₽")
 
     def test_update_rejects_a_product_not_in_the_cart(self):
         client = Client()
         response = client.post(
             reverse("orders:cart"),
-            {"action": "update", "cart_line_id": str(self.product.pk), "weight": "0.2"},
+            {"action": "update", "cart_line_id": str(self.product.pk), "weight": "2"},
         )
 
         self.assertEqual(response.status_code, 404)
@@ -260,7 +299,7 @@ class SessionCartTests(TestCase):
 
     def test_remove_works_with_invalid_weight_and_repeated_remove_is_safe(self):
         client = Client()
-        self.add(client, weight="0.2")
+        self.add(client, weight="2")
         page = client.get(reverse("orders:cart"))
         self.assertContains(page, f'value="remove" form="cart-item-{self.product.pk}" formnovalidate')
 
@@ -276,7 +315,7 @@ class SessionCartTests(TestCase):
         client = Client()
         secret_price = "9876.54"
         Product.objects.filter(pk=self.product.pk).update(price_per_kg=Decimal(secret_price))
-        self.add(client, weight="0.1")
+        self.add(client, weight="1")
         Product.objects.filter(pk=self.product.pk).update(is_published=False)
 
         hidden_cart = client.get(reverse("orders:cart"))
@@ -287,44 +326,92 @@ class SessionCartTests(TestCase):
         self.assertEqual(self.cart_lines(client), {})
 
         Product.objects.filter(pk=self.product.pk).update(is_published=True)
-        self.add(client, weight="0.1")
+        self.add(client, weight="1")
         Product.objects.filter(pk=self.product.pk).delete()
         deleted_cart = client.get(reverse("orders:cart"))
         self.assertContains(deleted_cart, "Корзина пуста")
         self.assertNotContains(deleted_cart, self.product.name)
         self.assertEqual(self.cart_lines(client), {})
 
-    def test_changed_minimum_or_step_keeps_line_but_hides_invalid_total(self):
+    def test_legacy_minimum_and_step_changes_do_not_invalidate_integer_weight(self):
         client = Client()
-        self.add(client, weight="0.2")
+        self.add(client, weight="2")
         Product.objects.filter(pk=self.product.pk).update(
-            minimum_weight=Decimal("0.15"),
-            weight_step=Decimal("0.1"),
+            minimum_weight=Decimal("10.5"),
+            weight_step=Decimal("3.25"),
         )
 
         page = client.get(reverse("orders:cart"))
-        self.assertContains(page, 'value="0.2"')
-        self.assertContains(page, "Минимальный вес или шаг изменился")
-        self.assertNotContains(page, "Предварительная сумма <strong>")
-        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "0.2"})
+        self.assertContains(page, 'value="2"')
+        self.assertContains(page, "200,00 ₽")
+        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "2"})
+
+    def test_legacy_fractional_session_cannot_be_added_to_and_can_be_fixed(self):
+        client = Client()
+        self.set_cart_lines(client, {str(self.product.pk): "1.5"})
+
+        page = client.get(reverse("orders:cart"))
+        self.assertContains(page, 'value="1.5"')
+        self.assertContains(page, "Укажите целое количество килограммов от 1 до 99 999.")
+        self.assertContains(page, 'data-cart-total-available="false"')
+        self.assertContains(page, 'data-cart-total-value aria-hidden="true">—</strong>')
+        self.assertContains(page, 'data-cart-line-total-available="false" aria-hidden="true">—</span>')
+        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "1.5"})
+
+        rejected_add = self.add(client, weight="2")
+        self.assertEqual(rejected_add.status_code, 400)
+        self.assertContains(
+            rejected_add,
+            "Исправьте или удалите позицию в корзине перед добавлением.",
+            status_code=400,
+        )
+        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "1.5"})
+
+        product_page = client.get(reverse("catalog:product", args=(self.product.slug,)))
+        self.assertContains(product_page, 'value="1"')
+        self.assertContains(product_page, "Добавить в корзину")
+        self.assertNotContains(product_page, "Обновить вес в корзине")
 
         fixed = client.post(
             reverse("orders:cart"),
-            {"action": "update", "cart_line_id": str(self.product.pk), "weight": "0.25"},
+            {"action": "update", "cart_line_id": str(self.product.pk), "weight": "3"},
         )
         self.assertEqual(fixed.status_code, 302)
-        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "0.25"})
-        self.assertContains(client.get(reverse("orders:cart")), "25,00 ₽")
+        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "3"})
+        self.assertContains(client.get(reverse("orders:cart")), "300,00 ₽")
+
+    def test_legacy_integer_decimal_session_adds_arithmetically_and_normalizes(self):
+        client = Client()
+        self.set_cart_lines(client, {str(self.product.pk): "2.000"})
+
+        response = self.add(client, weight="3")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.cart_lines(client), {str(self.product.pk): "5"})
+        page = client.get(reverse("orders:cart"))
+        self.assertContains(page, 'value="5"')
+        self.assertContains(page, "500,00 ₽")
+
+    def test_legacy_fractional_session_can_be_removed_without_valid_weight(self):
+        client = Client()
+        self.set_cart_lines(client, {str(self.product.pk): "1.5"})
+
+        removed = client.post(
+            reverse("orders:cart"),
+            {"action": "remove", "cart_line_id": str(self.product.pk), "weight": "not-a-number"},
+        )
+        self.assertEqual(removed.status_code, 302)
+        self.assertEqual(self.cart_lines(client), {})
 
     def test_malformed_session_data_is_discarded_without_server_error(self):
         client = Client()
         self.set_cart_lines(
             client,
             {
-                "99999999999999999999": "0.1",
-                "01": "0.1",
+                "99999999999999999999": "1",
+                "01": "1",
                 str(self.product.pk): "NaN",
-                str(self.product.pk + 100): "0.1",
+                str(self.product.pk + 100): "1",
             },
         )
 
@@ -350,7 +437,7 @@ class SessionCartTests(TestCase):
             with self.subTest(product_id=product_id):
                 response = client.post(
                     reverse("orders:cart"),
-                    {"action": "add", "product_id": product_id, "weight": "0.1"},
+                    {"action": "add", "product_id": product_id, "weight": "1"},
                 )
                 self.assertEqual(response.status_code, 404)
 
@@ -359,7 +446,7 @@ class SessionCartTests(TestCase):
             slug="session-cart-unpublished",
             published=False,
         )
-        response = self.add(client, unpublished, "0.1")
+        response = self.add(client, unpublished, "1")
         self.assertEqual(response.status_code, 404)
 
         unknown = client.post(reverse("orders:cart"), {"action": "other"})
@@ -367,7 +454,7 @@ class SessionCartTests(TestCase):
 
     def test_request_cart_state_is_loaded_only_once(self):
         request = RequestFactory().get(reverse("orders:cart"))
-        request.session = {CART_SESSION_KEY: {str(self.product.pk): "0.1"}}
+        request.session = {CART_SESSION_KEY: {str(self.product.pk): "1"}}
         with self.assertNumQueries(1):
             first = get_cart_state(request)
             second = get_cart_state(request)
@@ -382,23 +469,22 @@ class SessionCartTests(TestCase):
             self.assertEqual(state.count, 0)
             self.assertEqual(cart_count(request), 0)
 
-    def test_checkout_is_read_only_and_public_order_posts_remain_unavailable(self):
+    def test_checkout_redirects_to_enabled_cart_request_form(self):
         client = Client()
-        self.add(client, weight="0.2")
+        self.add(client, weight="2")
 
         checkout = client.get(reverse("orders:checkout"))
-        self.assertContains(checkout, self.product.name)
-        self.assertContains(checkout, "Приём заявок пока не подключён")
-        self.assertContains(checkout, 'name="phone"')
-        self.assertContains(checkout, "disabled")
+        self.assertEqual(checkout.status_code, 302)
+        self.assertEqual(checkout.url, reverse("orders:cart") + "#request")
 
-        before = (Order.objects.count(), Inquiry.objects.count(), NotificationOutbox.objects.count())
-        checkout_post = client.post(reverse("orders:checkout"), {"name": "Не сохранять"})
-        wholesale_post = client.post(reverse("inquiries:wholesale"), {"need": "Не сохранять"})
-        after = (Order.objects.count(), Inquiry.objects.count(), NotificationOutbox.objects.count())
-        self.assertEqual(checkout_post.status_code, 503)
-        self.assertEqual(wholesale_post.status_code, 503)
-        self.assertEqual(after, before)
+        cart = client.get(reverse("orders:cart"))
+        self.assertContains(cart, self.product.name)
+        self.assertContains(cart, 'id="retail-request-form"')
+        self.assertContains(cart, 'name="phone"')
+        self.assertContains(cart, 'name="submission_key"')
+        self.assertContains(cart, 'name="submission_token"')
+        self.assertNotContains(cart, "Приём заявок пока не подключён")
+        self.assertNotContains(cart, "disabled")
 
     def test_cart_rejects_unsupported_method(self):
         self.assertEqual(self.client.put(reverse("orders:cart")).status_code, 405)

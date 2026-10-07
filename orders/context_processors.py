@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.urls import reverse
 
-from .cart import CART_ISSUES_MESSAGE, cart_count as count_cart_lines
+from .cart.state import CART_ISSUES_MESSAGE, cart_count as count_cart_lines
 
 
 def cart_count(request):

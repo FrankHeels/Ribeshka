@@ -24,42 +24,76 @@ class FrontendTemplateTests(SimpleTestCase):
     def render(self, template, context):
         return render_to_string(template, context, request=self.request)
 
-    def test_fractional_weight_uses_html_number_format(self):
+    def test_weight_controls_use_whole_kilograms_and_preserve_invalid_legacy_value(self):
         detail = self.render(
             "catalog/product.html",
-            {"product": self.product, "initial_weight": Decimal("1.0"), "forms_enabled": True},
+            {"product": self.product, "initial_weight": "1", "forms_enabled": True},
         )
         number_input = re.search(r'<input id="product-weight"[^>]+>', detail).group()
-        for attribute in ('min="0.1"', 'step="0.1"', 'value="1.0"'):
+        for attribute in ('inputmode="numeric"', 'min="1"', 'max="99999"', 'step="1"', 'value="1"'):
             self.assertIn(attribute, number_input)
+        for step in ("-1", "1"):
+            self.assertIn(f'data-product-weight-step="{step}"', detail)
+        self.assertIn('aria-controls="product-weight" hidden', detail)
+        self.assertIn('aria-label="Уменьшить вес на 1 кг"', detail)
+        self.assertIn('aria-label="Увеличить вес на 1 кг"', detail)
+        self.assertIn("<legend>Добавить в корзину</legend>", detail)
+        self.assertIn('name="action" value="add">Добавить в корзину</button>', detail)
 
-        item = {
+        valid_item = {
             "key": "line1",
             "product": self.product,
             "price_per_kg": Decimal("100.00"),
-            "weight": Decimal("1.0"),
-            "minimum_weight": Decimal("0.1"),
-            "weight_step": Decimal("0.1"),
-            "line_total": Decimal("100.00"),
-            "weight_errors": ["Неверный вес"],
+            "weight": Decimal("2.000"),
+            "weight_display": "2",
+            "line_total": Decimal("200.00"),
+            "weight_errors": [],
+        }
+        legacy_item = {
+            **valid_item,
+            "key": "line2",
+            "weight": Decimal("1.5"),
+            "weight_display": "1.5",
+            "line_total": None,
+            "weight_errors": ["Укажите целое количество килограммов от 1 до 99 999."],
         }
         cart = self.render(
             "orders/cart.html",
-            {"cart_items": [item, {**item, "key": "line2", "weight_errors": []}], "cart_total": Decimal("200.00"), "forms_enabled": True},
+            {
+                "cart_items": [valid_item, legacy_item],
+                "cart_total": None,
+                "cart_total_is_valid": False,
+                "forms_enabled": True,
+            },
         )
-        self.assertIn('min="0.1" step="0.1" value="1.0"', cart)
-        self.assertEqual(cart.count("Неверный вес"), 1)
-        self.assertIn('aria-describedby="weight-error-line1"', cart)
+        self.assertIn('type="number" inputmode="numeric" min="1" max="99999" step="1" value="2"', cart)
+        self.assertIn('min="1" max="99999" step="1" value="1.5"', cart)
+        self.assertIn('aria-describedby="weight-error-line2"', cart)
+        self.assertIn('data-cart-step="-1"', cart)
+        self.assertIn('aria-label="Уменьшить вес на 1 кг"', cart)
+        self.assertIn('data-cart-step="1"', cart)
+        self.assertIn('aria-label="Увеличить вес на 1 кг"', cart)
+        self.assertIn('data-cart-line-total-value data-cart-line-total-available="true">200,00 ₽', cart)
+        self.assertIn('data-cart-line-total-value data-cart-line-total-available="false" aria-hidden="true">—', cart)
+        self.assertIn('data-cart-total data-cart-total-available="false" class="is-unavailable"', cart)
+        self.assertIn('data-cart-total-value aria-hidden="true">—</strong>', cart)
+        self.assertIn('data-cart-total-status role="status" aria-live="polite"', cart)
+        self.assertNotIn('data-cart-status', cart)
+        self.assertNotIn("Сумма пересчитана.", cart)
 
     def test_error_summary_targets_existing_controls(self):
         contexts = (
             (
-                "orders/checkout.html",
+                "orders/cart.html",
                 {
-                    "cart_items": [{"product": self.product, "weight": Decimal("1.0"), "price_per_kg": Decimal("100.00"), "line_total": Decimal("100.00")}],
+                    "cart_items": [{"key": "1", "product": self.product, "weight": Decimal("1.0"), "weight_display": "1", "price_per_kg": Decimal("100.00"), "line_total": Decimal("100.00"), "weight_errors": []}],
                     "cart_total": Decimal("100.00"),
+                    "cart_total_is_valid": True,
+                    "cart_issues": False,
                     "forms_enabled": True,
                     "price_changed": True,
+                    "cart_changes": [{"message": "Цена обновилась"}],
+                    "submission": {"submission_key": "key", "submission_token": "token"},
                     "field_errors": {"pickup_method": ["Выберите способ"], "consent": ["Нужно согласие"], "confirm_updated_cart": ["Подтвердите изменения"]},
                 },
             ),
@@ -75,6 +109,13 @@ class FrontendTemplateTests(SimpleTestCase):
                 summary_targets = set(re.findall(r'href="#(id_[^"]+)"', rendered))
                 self.assertTrue(summary_targets)
                 self.assertFalse(summary_targets - ids)
+
+        wholesale = self.render(
+            "inquiries/wholesale.html",
+            {"forms_enabled": True, "submission": {"submission_key": "key", "submission_token": "token"}},
+        )
+        self.assertNotIn('name="need"', wholesale)
+        self.assertNotIn("Опишите потребность", wholesale)
 
     def test_populated_home_has_populated_heading(self):
         html = self.render(

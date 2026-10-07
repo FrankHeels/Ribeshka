@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load l10n %}
+{% load static l10n %}
 {% block content %}
   {% include "partials/error-summary.html" %}
   {% if cart_issues %}<div class="notice notice-error" role="alert"><h2>Проверьте состав корзины</h2><p>{{ cart_issues_message }}</p></div>{% endif %}
@@ -20,17 +20,26 @@
       <form class="product-order-form" method="post" action="{% url 'orders:cart' %}">
         {% csrf_token %}
         <fieldset {% if not forms_enabled %}disabled{% endif %}>
-          <legend>{% if is_in_cart %}Обновить вес в корзине{% else %}Добавить в корзину{% endif %}</legend>
+          <legend>Добавить в корзину</legend>
           <input type="hidden" name="product_id" value="{{ product.id }}">
           <div class="field">
             <label for="product-weight">Желаемый вес, кг</label>
-            <input id="product-weight" name="weight" type="number" inputmode="decimal" min="{{ product.minimum_weight|unlocalize }}" step="{{ product.weight_step|unlocalize }}" value="{{ initial_weight|unlocalize }}" required {% if field_errors.weight %}aria-invalid="true" aria-describedby="product-weight-error"{% endif %}>
-            {% if field_errors.weight %}<p class="field-error" id="product-weight-error">{{ field_errors.weight.0 }}</p>{% endif %}
+            <div class="cart-weight-control" data-product-weight>
+              <button class="cart-stepper" type="button" data-product-weight-step="-1" aria-label="Уменьшить вес на 1 кг" aria-controls="product-weight" hidden>
+                <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 10h12" /></svg>
+              </button>
+              <input id="product-weight" class="cart-weight" name="weight" type="number" inputmode="numeric" min="1" max="99999" step="1" value="{{ initial_weight|unlocalize }}" required {% if field_errors.weight %}aria-invalid="true" aria-describedby="product-weight-error"{% endif %}>
+              <button class="cart-stepper" type="button" data-product-weight-step="1" aria-label="Увеличить вес на 1 кг" aria-controls="product-weight" hidden>
+                <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 10h12M10 4v12" /></svg>
+              </button>
+            </div>
+            <p class="field-error" id="product-weight-error" role="alert" {% if not field_errors.weight %}hidden{% endif %}>{{ field_errors.weight.0 }}</p>
           </div>
-          {% if forms_enabled %}<button class="button button-primary" type="submit" name="action" value="add">{% if is_in_cart %}Обновить вес в корзине{% else %}Добавить в корзину{% endif %}</button>{% else %}<button class="button button-primary" type="submit" disabled>Добавить в корзину</button>{% endif %}
+          {% if forms_enabled %}<button class="button button-primary" type="submit" name="action" value="add">Добавить в корзину</button>{% else %}<button class="button button-primary" type="submit" disabled>Добавить в корзину</button>{% endif %}
         </fieldset>
         {% if not forms_enabled %}<p class="form-status" role="status">Добавление в корзину ещё не подключено.</p>{% endif %}
       </form>
     </div>
   </article>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/product-weight.js' %}?v=2026-10-02-1" defer></script>{% endblock %}

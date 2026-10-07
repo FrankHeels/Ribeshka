@@ -2,8 +2,8 @@
 {% block content %}
   <section class="error-page" aria-labelledby="unavailable-title">
     <p class="section-kicker">Ошибка 503</p>
-    <h1 id="unavailable-title">Заявки пока не принимаются</h1>
-    <p>Приём заявок ещё не подключён. Данные из этого запроса не сохранены.</p>
-    <a class="button button-primary" href="{% url 'home' %}">На главную</a>
+    <h1 id="unavailable-title">Не удалось подтвердить результат</h1>
+    <p>Повторите отправку исходной формы позже.</p>
+    <a class="button button-primary" href="{{ retry_url|default:'/' }}">{{ retry_label|default:"На главную" }}</a>
   </section>
 {% endblock %}

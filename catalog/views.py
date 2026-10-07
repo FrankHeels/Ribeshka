@@ -2,7 +2,7 @@ from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
-from orders.cart import get_cart_state
+from orders.cart import MIN_RETAIL_WEIGHT
 
 from .models import Category, Product
 
@@ -44,11 +44,6 @@ def category(request, slug):
 def product(request, slug):
     product_obj = get_object_or_404(_published_products(), slug=slug)
     meta_description = product_obj.short_description or product_obj.description or product_obj.name
-    cart_state = get_cart_state(request)
-    cart_item = next(
-        (item for item in cart_state.items if item["key"] == str(product_obj.pk)),
-        None,
-    )
 
     return render(
         request,
@@ -60,8 +55,7 @@ def product(request, slug):
             "product": product_obj,
             "forms_enabled": True,
             "field_errors": {},
-            "initial_weight": cart_item["weight"] if cart_item else product_obj.minimum_weight,
-            "is_in_cart": cart_item is not None,
+            "initial_weight": MIN_RETAIL_WEIGHT,
             "breadcrumbs": [
                 {
                     "label": product_obj.category.name,

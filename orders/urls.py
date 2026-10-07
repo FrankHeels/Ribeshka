@@ -7,6 +7,5 @@ app_name = "orders"
 urlpatterns = [
     path("cart/", views.cart, name="cart"),
     path("checkout/", views.checkout, name="checkout"),
-    path("checkout/success/<slug:token>/", views.success, name="success"),
+    path("checkout/success/<uuid:token>/", views.success, name="success"),
 ]
-
