@@ -1,0 +1,15 @@
+{% autoescape off %}Розничная заявка {{ notification.request_number }}
+Создана: {{ notification.created_at|date:"d.m.Y H:i" }}
+
+Контактное лицо: {{ notification.contact_name }}
+Телефон: {{ notification.phone }}
+Email: {{ notification.email|default:"не указан" }}
+
+Позиции:
+{% for item in notification.items %}- {{ item.product_name }} — {{ item.weight|floatformat:"-3" }} кг × {{ item.price_per_kg|floatformat:2 }} руб./кг = {{ item.line_total|floatformat:2 }} руб.
+{% endfor %}
+Предварительный итог: {{ notification.preliminary_total|floatformat:2 }} руб.
+Способ получения: {{ fulfillment_label }}
+{% if notification.delivery_address %}Адрес доставки: {{ notification.delivery_address }}
+{% endif %}{% if notification.comment %}Комментарий: {{ notification.comment }}
+{% endif %}{% endautoescape %}
