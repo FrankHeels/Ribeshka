@@ -8,22 +8,25 @@
       <div class="hero-copy reveal-up">
         <p class="hero-context">{% if hero_section.title %}{{ hero_section.title }}{% else %}Калининградская рыбёшка / розница и опт{% endif %}</p>
         <h1 id="home-hero-title">{% if home_title %}{{ home_title }}{% else %}Рыбная продукция для вашего стола{% endif %}</h1>
-        {% if hero_section.body %}<div class="hero-lead">{{ hero_section.body|linebreaks }}</div>{% else %}<p class="hero-lead">{% if catalog_ready %}Знакомьтесь с ассортиментом и ценами за килограмм. Оформление заявок пока недоступно.{% else %}Ассортимент готовится к публикации. Здесь появятся категории и актуальные цены.{% endif %}</p>{% endif %}
+        {% if hero_section.body %}<div class="hero-lead">{{ hero_section.body|linebreaks }}</div>{% else %}<p class="hero-lead">{% if catalog_ready %}Выбирайте рыбную продукцию и оставляйте заявку на сайте. Вес, стоимость и условия получения согласуем с вами лично.{% else %}Ассортимент готовится к публикации. Здесь появятся категории и актуальные цены.{% endif %}</p>{% endif %}
         <div class="hero-actions">
           <a class="button button-primary" href="#assortment">Перейти к ассортименту <span class="button-arrow" aria-hidden="true">↘</span></a>
         </div>
       </div>
-      <div class="hero-visual reveal-up">
-        {% if hero_photo.url %}
-          <img src="{{ hero_photo.url }}" alt="{{ hero_photo.alt_text|default:'Рыбная продукция' }}" width="960" height="1200" fetchpriority="high" decoding="async">
-        {% else %}
-          <div class="hero-media-placeholder">
-            <img class="hero-engraving" src="{% static 'img/hero-current.svg' %}" alt="" aria-hidden="true" width="820" height="760" fetchpriority="high">
-            <p class="hero-media-note">Фотографии продукции появятся вместе с ассортиментом.</p>
-          </div>
-        {% endif %}
-        <div class="hero-stamp" aria-label="Розничные и оптовые заявки">Розница <span>и</span> опт</div>
-      </div>
+      <ul class="hero-values reveal-up" aria-label="Наши преимущества" role="list">
+        <li class="hero-value">
+          <img src="{% static 'img/quality-raw-material.svg' %}" alt="" aria-hidden="true" width="112" height="112">
+          <p>Сырье высочайшего качества</p>
+        </li>
+        <li class="hero-value">
+          <img src="{% static 'img/own-production.svg' %}" alt="" aria-hidden="true" width="112" height="112">
+          <p>Собственное производство</p>
+        </li>
+        <li class="hero-value">
+          <img src="{% static 'img/modern-standards.svg' %}" alt="" aria-hidden="true" width="112" height="112">
+          <p>Новейшие стандарты</p>
+        </li>
+      </ul>
     </div>
     <div class="hero-bottom page-width"><span>Рыбная продукция / Калининградская рыбёшка</span><a href="#request-steps">Как проходит заявка <span aria-hidden="true">↓</span></a></div>
   </section>

@@ -38,7 +38,7 @@ sized images with meaningful alt text. There is no public `/catalog/` index page
 
 | Route name | Template | Required context |
 |---|---|---|
-| `home` | `home.html` | `catalog_ready`, all public `categories`, `featured_products`, optional `hero_photo`, `home_title`, `home_sections`, `hero_section`, `delivery_section`, `home_steps`, `about_summary`, `advantages`, and `contact_summary`. Category cards use published records; home text comes from fixed content blocks. Company and contact text must be confirmed by the client. |
+| `home` | `home.html` | `catalog_ready`, all public `categories`, `featured_products`, `home_title`, `home_sections`, `hero_section`, `delivery_section`, `home_steps`, `about_summary`, `advantages`, and `contact_summary`. Category cards use published records; home text comes from fixed content blocks. Company and contact text must be confirmed by the client. |
 | `catalog:category` | `catalog/category.html` | A real `category`, its directly assigned published `products`, breadcrumbs for home/current category, optional `page_obj` and `catalog_error`. Resolve unknown slugs as 404; do not expose unpublished products. |
 | `catalog:product` | `catalog/product.html` | A real published `product`, `forms_enabled=True`, `field_errors`, optional `field_ids`, `initial_weight`, and breadcrumbs. The initial weight is always 1 kg to add; invalid POST responses preserve the submitted value. The legend and button always say `Добавить в корзину`. Resolve unknown or unpublished products as 404. Adding the same product increases the line's weight. |
 | `orders:cart` | `orders/cart.html` | Current `cart_items`, `forms_enabled=True`, server `cart_total`, `cart_total_is_valid`, `cart_error`, generic `cart_issues`, `submission`, optional `values`, `field_errors`, `form_errors`, `price_changed`, `cart_changes`, and breadcrumbs. The retail contact form is below the total. |
@@ -55,9 +55,10 @@ sized images with meaningful alt text. There is no public `/catalog/` index page
 up to 2 featured products, and up to 4 confirmed advantages. The shared header
 menu exposes the same categories on every page and links back to the homepage
 assortment section. Category pages contain each category's published products.
-`hero_photo` is an optional client-approved photograph of prepared fish product
-with `{url, alt_text}`. Keep it empty until that real photograph is supplied;
-the hero then renders an honest text fallback instead of stock photography.
+The hero displays three approved promises with decorative SVG icons: raw-material
+quality, own production, and modern standards. Below 900 px they follow the
+introductory copy and action. The legacy `hero_photo` context value is unused.
+The default hero copy invites an inquiry; editable `hero_section.body` takes precedence.
 A product card requires
 `{name, slug}` and may include `short_description`, `price_per_kg` as `Decimal`,
 and `primary_photo` with `url` and `alt_text`. A product page additionally
