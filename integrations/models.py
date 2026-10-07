@@ -98,3 +98,18 @@ class NotificationOutbox(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+class PublicFormRateLimit(models.Model):
+    """Durable per-client rate window shared by all web processes."""
+
+    bucket_key = models.CharField("Ключ ограничения", max_length=64, unique=True, editable=False)
+    window_started_at = models.DateTimeField("Начало окна")
+    request_count = models.PositiveIntegerField("Число запросов", default=0)
+
+    class Meta:
+        verbose_name = "ограничение публичной формы"
+        verbose_name_plural = "ограничения публичных форм"
+
+    def __str__(self):
+        return self.bucket_key
