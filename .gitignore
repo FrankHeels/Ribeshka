@@ -10,3 +10,6 @@ __pycache__/
 db.sqlite3
 staticfiles/
 media/
+
+.env.test
+.test-postgres/
