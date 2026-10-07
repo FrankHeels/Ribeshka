@@ -16,10 +16,11 @@ class Inquiry(models.Model):
     company = models.CharField("Компания", max_length=180, blank=True)
     phone = models.CharField("Телефон", max_length=40)
     email = models.EmailField("Email", blank=True)
-    need = models.TextField("Описание потребности")
+    need = models.TextField("Описание потребности", blank=True, default="")
     privacy_consent = models.BooleanField("Согласие на обработку данных", default=False)
     privacy_consent_at = models.DateTimeField("Время согласия")
     submission_key = models.UUIDField("Ключ отправки", default=uuid.uuid4, unique=True, editable=False)
+    success_token = models.UUIDField("Токен страницы успеха", default=uuid.uuid4, unique=True, editable=False)
     created_at = models.DateTimeField("Создан", auto_now_add=True)
 
     class Meta:
@@ -42,9 +43,6 @@ class Inquiry(models.Model):
             errors["phone"] = "Укажите телефон."
         if not self.privacy_consent:
             errors["privacy_consent"] = "Для создания запроса требуется согласие на обработку данных."
-        need = self.need if isinstance(self.need, str) else ""
-        if not need.strip():
-            errors["need"] = "Опишите потребность."
         if errors:
             raise ValidationError(errors)
 

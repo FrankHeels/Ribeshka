@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="success-panel" aria-labelledby="success-title">
+    <p class="section-kicker">Оптовый запрос</p>
+    <h1 id="success-title">Запрос принят</h1>
+    <p>Номер запроса: <strong>{{ inquiry_number }}</strong></p>
+    <p>Контакт для ответа указан в форме.</p>
+    <a class="button button-primary" href="{% url 'home' %}">Вернуться на главную</a>
+  </section>
+{% endblock %}

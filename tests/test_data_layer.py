@@ -180,11 +180,11 @@ class ModelTests(TestCase):
             with self.assertRaises(IntegrityError), transaction.atomic(), connection.cursor() as cursor:
                 cursor.execute(f'UPDATE orders_orderitem SET {field} = %s WHERE id = %s', [value, item.pk])
 
-    def test_wholesale_required_data_and_consent(self):
-        for values in ({"need": " "}, {"contact_name": " "}, {"phone": " "}, {"privacy_consent": False}):
+    def test_wholesale_contact_and_consent_are_required_but_need_is_optional(self):
+        for values in ({"contact_name": " "}, {"phone": " "}, {"privacy_consent": False}):
             with self.assertRaises(ValidationError):
                 self.inquiry(**values)
-        inquiry = self.inquiry()
+        inquiry = self.inquiry(need="")
         self.reject_db(lambda: Inquiry.objects.filter(pk=inquiry.pk).update(privacy_consent=False))
         self.assertFalse(hasattr(inquiry, "items"))
 
@@ -386,13 +386,13 @@ class AdminTests(TestCase):
         self.assertEqual(page.key, "home")
         self.assertEqual(set(page.sections.values_list("key", flat=True)), set(HOME_SECTION_KEYS))
 
-    def test_anonymous_cannot_edit_admin_and_public_posts_stay_disabled(self):
+    def test_anonymous_cannot_edit_admin_and_invalid_public_posts_create_no_requests(self):
         page = ContentPage.objects.get(key="home")
         response = self.client.post(reverse("admin:content_contentpage_change", args=[page.pk]), {"title": "Подмена"})
         self.assertEqual(response.status_code, 302)
         self.assertIn("/admin/login/", response.url)
         for path in ("/checkout/", "/wholesale/"):
-            self.assertEqual(self.client.post(path, {}).status_code, 503)
+            self.assertEqual(self.client.post(path, {}).status_code, 400)
         self.assertEqual(Order.objects.count(), 0)
         self.assertEqual(Inquiry.objects.count(), 0)
 
