@@ -166,4 +166,4 @@ cd /Users/frankheels/FishSite
 их или запусти процессы из новой вкладки без прежних экспортов.
 
 [Сценарии автоматизированной проверки безопасности и целостности](gmail-smtp-validation.md) ·
-[README](../README.md) · [Индекс проекта](../AGENTS.md)
+[README](../README.md) · [Индекс проекта](wiki/INDEX.md)

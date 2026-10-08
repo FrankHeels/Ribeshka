@@ -3,7 +3,7 @@
 Read this file for template context, URL names and form states. Page requirements
 are in the [page map](wiki/page-map.md); calculations, submission and security
 rules are in the [order flow](wiki/order-flow.md). Select other documents from
-the [project index](../AGENTS.md) as needed.
+the [project index](wiki/INDEX.md) as needed.
 
 The public pages use Django templates. Home, information, category, and product
 views load their data from PostgreSQL. Home and the shared assortment menu list

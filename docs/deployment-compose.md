@@ -101,4 +101,4 @@ docker compose down
 постоянные резервные копии БД и media, правила firewall и реальные
 `DJANGO_ALLOWED_HOSTS` до публикации сайта.
 
-[Индекс проекта](../AGENTS.md)
+[Индекс проекта](wiki/INDEX.md)
