@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import Prefetch
 from django.shortcuts import render
 from django.urls import reverse
@@ -90,7 +91,7 @@ def home(request):
     )
 
 
-def _page(request, *, key, title, description, notice):
+def _page(request, *, key, title, description, notice, template="content/page.html", extra_context=None):
     page = ContentPage.objects.filter(key=key).prefetch_related("sections").first()
     sections = list(page.sections.all()) if page else []
     lead = next((section for section in sections if section.key == "lead"), None)
@@ -101,7 +102,7 @@ def _page(request, *, key, title, description, notice):
     page_title = page.title if page and page.title else title
     return render(
         request,
-        "content/page.html",
+        template,
         {
             "page_title": page_title,
             "seo_title": page.seo_title if page else "",
@@ -110,6 +111,7 @@ def _page(request, *, key, title, description, notice):
             "page_lead": lead,
             "content_sections": substantive_sections,
             "breadcrumbs": [{"label": page_title}],
+            **(extra_context or {}),
         },
     )
 
@@ -121,7 +123,15 @@ def about(request):
 
 def delivery(request):
     title, description, notice = PAGE_DEFAULTS[ContentPage.Key.DELIVERY]
-    return _page(request, key=ContentPage.Key.DELIVERY, title=title, description=description, notice=notice)
+    return _page(
+        request,
+        key=ContentPage.Key.DELIVERY,
+        title=title,
+        description=description,
+        notice=notice,
+        template="content/delivery.html",
+        extra_context={"yandex_maps_api_key": settings.YANDEX_MAPS_API_KEY},
+    )
 
 
 def contacts(request):

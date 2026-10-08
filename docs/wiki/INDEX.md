@@ -10,6 +10,7 @@
 | Корзина, заявки, формы и защита POST | [Сценарии заявок](order-flow.md); URL, шаблонный контекст и состояния — [контракт frontend](../frontend-contract.md) |
 | Outbox, SMTP, worker и повторы | [Уведомления](notifications.md); Gmail-проверка — [сценарии проверки](../gmail-smtp-validation.md); ручная проверка с Gmail — [практическая проверка](../gmail-smtp-practical-test.md) |
 | Оформление, адаптивность и доступность | [Дизайн-система](../design-system.md) |
+| Карта зон доставки и ключ Яндекса | [Карта доставки](../delivery-map.md) |
 | VPS и эксплуатация | [Эксплуатация](operations.md); локальная VM и Docker Compose — [руководство Compose](../deployment-compose.md) |
 | Следующий этап и приёмка | [План и приёмка](implementation-plan.md) |
 | Локальный запуск и повседневная работа | [README](../../README.md) |

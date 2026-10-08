@@ -1,0 +1,39 @@
+{% extends "content/page.html" %}
+{% load static %}
+
+{% block after_content %}
+  <section class="delivery-map-section" aria-labelledby="delivery-map-title" data-delivery-map>
+    <div class="delivery-map-heading">
+      <div>
+        <p class="section-kicker">География доставки</p>
+        <h2 id="delivery-map-title">Зоны доставки</h2>
+      </div>
+      <a class="button button-secondary" href="https://yandex.ru/maps/?ll=20.52955%2C54.72569&amp;z=11" target="_blank" rel="noopener noreferrer">Открыть в Картах <span aria-hidden="true">↗</span></a>
+    </div>
+    <ul class="delivery-map-legend" aria-label="Обозначения зон доставки">
+      <li><span class="delivery-zone-swatch delivery-zone-kaliningrad" aria-hidden="true"></span>Калининград</li>
+      <li><span class="delivery-zone-swatch delivery-zone-outer" aria-hidden="true"></span>Внешняя зона</li>
+      <li><span class="delivery-zone-swatch delivery-zone-guryevsk" aria-hidden="true"></span>Гурьевск</li>
+    </ul>
+    <div class="delivery-map-frame">
+      <div id="delivery-map" class="delivery-map-canvas" role="region" aria-label="Карта зон доставки: Калининград, внешняя зона и Гурьевск" aria-describedby="delivery-map-note" hidden></div>
+      <div class="delivery-map-fallback" data-map-fallback>
+        <p class="delivery-map-status" role="status" data-map-status>Интерактивная карта сейчас недоступна. Условия доставки можно уточнить при подтверждении заявки.</p>
+        <noscript><p>Для интерактивной карты включите JavaScript или воспользуйтесь ссылкой «Открыть в Картах».</p></noscript>
+      </div>
+    </div>
+    <div class="delivery-map-controls" data-map-controls hidden role="group" aria-label="Управление картой">
+      <button type="button" class="button button-secondary" data-map-zoom="1" aria-label="Приблизить карту">+</button>
+      <button type="button" class="button button-secondary" data-map-zoom="-1" aria-label="Отдалить карту">−</button>
+      <button type="button" class="button button-secondary" data-map-reset>Все зоны</button>
+    </div>
+    <p id="delivery-map-note" class="delivery-map-note">Границы зон показаны ориентировочно. Стоимость и возможность доставки по вашему адресу подтвердим при согласовании заявки.</p>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  {% if yandex_maps_api_key %}
+    {{ yandex_maps_api_key|json_script:"yandex-maps-api-key" }}
+    <script type="module" src="{% static 'js/delivery-map.js' %}?v=2026-10-08-1"></script>
+  {% endif %}
+{% endblock %}

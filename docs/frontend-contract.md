@@ -187,3 +187,9 @@ The reserved lead block remains the introduction. Empty sections are not shown
 as technical keys. Existing neutral UI fallbacks remain when material is missing.
 All stored text is escaped, with paragraph/line-break filters; never apply safe.
 See [data-layer.md](data-layer.md) for fixed keys, migrations and ORM boundaries.
+
+Delivery extends the shared content template with a map after all CMS sections.
+Only this view supplies `yandex_maps_api_key` from `YANDEX_MAPS_API_KEY`; a nonempty
+key is serialized with `json_script` and enables the delivery JS module. Zones
+remain static client data. See [delivery-map.md](delivery-map.md) for configuration,
+reference geometry and graceful failure states.

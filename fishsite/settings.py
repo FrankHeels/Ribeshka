@@ -52,6 +52,9 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
+# Public browser key. Restrict its domains in the Yandex developer dashboard.
+YANDEX_MAPS_API_KEY = _environment.get("YANDEX_MAPS_API_KEY", "").strip()
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
