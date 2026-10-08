@@ -46,6 +46,11 @@ ALLOWED_HOSTS = [
     for host in _environment.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
     if host.strip()
 ]
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in _environment.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -105,6 +110,19 @@ DATABASES = {
 PUBLIC_FORM_RATE_LIMIT = int(_environment.get("PUBLIC_FORM_RATE_LIMIT", "20"))
 PUBLIC_FORM_RATE_WINDOW_SECONDS = int(_environment.get("PUBLIC_FORM_RATE_WINDOW_SECONDS", "3600"))
 TRUST_X_REAL_IP = _boolean_environment_setting("DJANGO_TRUST_X_REAL_IP")
+
+# Production HTTPS is terminated by the controlled Nginx reverse proxy. Keep
+# the proxy header opt-in so local HTTP deployments do not appear secure.
+if _boolean_environment_setting("DJANGO_TRUST_X_FORWARDED_PROTO"):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = _boolean_environment_setting("DJANGO_SECURE_SSL_REDIRECT")
+SESSION_COOKIE_SECURE = _boolean_environment_setting("DJANGO_SESSION_COOKIE_SECURE")
+CSRF_COOKIE_SECURE = _boolean_environment_setting("DJANGO_CSRF_COOKIE_SECURE")
+SECURE_HSTS_SECONDS = _integer_environment_setting("DJANGO_SECURE_HSTS_SECONDS", "0")
+SECURE_HSTS_INCLUDE_SUBDOMAINS = _boolean_environment_setting(
+    "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS"
+)
+SECURE_HSTS_PRELOAD = _boolean_environment_setting("DJANGO_SECURE_HSTS_PRELOAD")
 
 # Request notifications are sent by a separately run worker. SMTP-specific
 # settings are only validated when the SMTP adapter is selected.
