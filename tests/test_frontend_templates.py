@@ -64,6 +64,7 @@ class FrontendTemplateTests(SimpleTestCase):
                 "cart_total": None,
                 "cart_total_is_valid": False,
                 "forms_enabled": True,
+                "submission": {"consent_url": "/personal-data-consent/revisions/sha256:abc/"},
             },
         )
         self.assertIn('type="number" inputmode="numeric" min="1" max="99999" step="1" value="2"', cart)
@@ -93,13 +94,21 @@ class FrontendTemplateTests(SimpleTestCase):
                     "forms_enabled": True,
                     "price_changed": True,
                     "cart_changes": [{"message": "Цена обновилась"}],
-                    "submission": {"submission_key": "key", "submission_token": "token"},
+                    "submission": {
+                        "submission_key": "key",
+                        "submission_token": "token",
+                        "consent_url": "/personal-data-consent/revisions/sha256:abc/",
+                    },
                     "field_errors": {"pickup_method": ["Выберите способ"], "consent": ["Нужно согласие"], "confirm_updated_cart": ["Подтвердите изменения"]},
                 },
             ),
             (
                 "inquiries/wholesale.html",
-                {"forms_enabled": True, "field_errors": {"phone": ["Укажите телефон"], "email": ["Проверьте почту"], "consent": ["Нужно согласие"]}},
+                {
+                    "forms_enabled": True,
+                    "field_errors": {"phone": ["Укажите телефон"], "email": ["Проверьте почту"], "consent": ["Нужно согласие"]},
+                    "submission": {"consent_url": "/personal-data-consent/revisions/sha256:abc/"},
+                },
             ),
         )
         for template, context in contexts:
@@ -112,7 +121,14 @@ class FrontendTemplateTests(SimpleTestCase):
 
         wholesale = self.render(
             "inquiries/wholesale.html",
-            {"forms_enabled": True, "submission": {"submission_key": "key", "submission_token": "token"}},
+            {
+                "forms_enabled": True,
+                "submission": {
+                    "submission_key": "key",
+                    "submission_token": "token",
+                    "consent_url": "/personal-data-consent/revisions/sha256:abc/",
+                },
+            },
         )
         self.assertNotIn('name="need"', wholesale)
         self.assertNotIn("Опишите потребность", wholesale)

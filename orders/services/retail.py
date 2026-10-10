@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connections, transaction
 from django.utils import timezone
 
+from content.consent_revisions import get_consent_revision, get_current_consent_revision
 from integrations.public_forms import (
     consume_public_form_rate_limit,
     make_submission_fields,
@@ -27,13 +28,30 @@ from .logic import (
 )
 
 
-def retail_submission_fields(request, state, *, requires_confirmation=False, submission_key=None):
+def retail_submission_fields(
+    request,
+    state,
+    *,
+    requires_confirmation=False,
+    submission_key=None,
+    consent_revision=None,
+    consent_revision_id=None,
+):
     snapshot = retail_snapshot_for_state(state)
+    if consent_revision is None:
+        consent_revision = (
+            get_consent_revision(consent_revision_id)
+            if consent_revision_id
+            else get_current_consent_revision()
+        )
+    if consent_revision is None:
+        raise ValueError("Архивная редакция согласия не найдена.")
     return make_submission_fields(
         request,
         "retail",
         submission_key or uuid.uuid4(),
         snapshot,
+        consent_revision=consent_revision,
         requires_confirmation=requires_confirmation,
     )
 
@@ -54,6 +72,10 @@ def submit_retail_order(request, claim, cleaned_data, *, using="default"):
         existing = get_retail_order_by_key(key, using=using)
         if existing is not None:
             return RetailSubmissionResult("existing", order=existing)
+
+        revision = get_consent_revision(claim.get("consent_revision_id"), using=using)
+        if revision is None:
+            raise ValidationError({"privacy_consent_revision": "Редакция согласия больше недоступна."})
 
         consume_public_form_rate_limit(request, "retail", using=using)
 
@@ -77,6 +99,7 @@ def submit_retail_order(request, claim, cleaned_data, *, using="default"):
             key,
             current_items,
             timezone.now(),
+            consent_revision=revision,
         )
         try:
             # Keep model uniqueness validation and all database constraints inside

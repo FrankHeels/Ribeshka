@@ -10,6 +10,7 @@ from django.db.models.query import QuerySet
 from django.db.models.manager import Manager
 
 from catalog.models import Product
+from content.models import ConsentRevision
 from .money import calculate_line_total
 
 FULFILLMENT_DELIVERY = "delivery"
@@ -38,6 +39,14 @@ class Order(models.Model):
     comment = models.TextField("Комментарий", blank=True)
     privacy_consent = models.BooleanField("Согласие на обработку данных", default=False)
     privacy_consent_at = models.DateTimeField("Время согласия")
+    privacy_consent_revision = models.ForeignKey(
+        ConsentRevision,
+        verbose_name="Редакция согласия",
+        related_name="retail_orders",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+    )
     submission_key = models.UUIDField("Ключ отправки", default=uuid.uuid4, unique=True, editable=False)
     success_token = models.UUIDField("Токен страницы успеха", default=uuid.uuid4, unique=True, editable=False)
     created_at = models.DateTimeField("Создана", auto_now_add=True)
@@ -75,6 +84,8 @@ class Order(models.Model):
             errors["delivery_address"] = "Укажите адрес для доставки."
         if not self.privacy_consent:
             errors["privacy_consent"] = "Для создания заявки требуется согласие на обработку данных."
+        if self._state.adding and self.privacy_consent_revision_id is None:
+            errors["privacy_consent_revision"] = "Для новой заявки требуется редакция принятого согласия."
         if errors:
             raise ValidationError(errors)
 

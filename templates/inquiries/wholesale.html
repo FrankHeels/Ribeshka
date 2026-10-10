@@ -35,8 +35,9 @@
       </div>
       <label class="choice consent-choice">
         <input id="id_consent" type="checkbox" name="consent" value="yes" required {% if values.consent %}checked{% endif %} {% if field_errors.consent %}aria-invalid="true" aria-describedby="wholesale-consent-error"{% endif %}>
-        <span>Согласен на обработку данных в соответствии с <a href="{% url 'content:privacy' %}">политикой</a>.</span>
+        <span>Даю <a href="{{ submission.consent_url }}">согласие на обработку персональных данных</a> для рассмотрения оптового запроса.</span>
       </label>
+      <p class="field-hint">Порядок обработки данных описан в <a href="{% url 'content:privacy' %}">Политике обработки персональных данных</a>.</p>
       {% if field_errors.consent %}<p class="field-error" id="wholesale-consent-error">{{ field_errors.consent.0 }}</p>{% endif %}
       <button class="button button-primary" type="submit">Отправить запрос</button>
     </form>

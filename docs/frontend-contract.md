@@ -46,7 +46,9 @@ sized images with meaningful alt text. There is no public `/catalog/` index page
 | `orders:success` | `orders/success.html` | `order_number` only after resolving the unguessable URL token to a saved order. Unknown tokens return 404. Never include customer details. |
 | `inquiries:wholesale` | `inquiries/wholesale.html` | `forms_enabled=True`, signed `submission`, optional submitted `values`, `field_errors`, and form-level `form_errors`. |
 | `inquiries:success` | `inquiries/success.html` | `inquiry_number` only, after resolving the separate unguessable UUID token; unknown/malformed tokens return 404. |
-| `content:about`, `content:delivery`, `content:contacts`, `content:privacy` | `content/page.html` | `page_lead` as the optional lead section (title/body), and `content_sections` as an ordered sequence of `{title, body}` or an accurate `content_notice` while client material is missing. |
+| `content:about`, `content:delivery`, `content:contacts` | `content/page.html` (`delivery` extends it) | `page_lead` as the optional lead section (title/body), and `content_sections` as an ordered sequence of `{title, body}` or an accurate `content_notice` while client material is missing. |
+| `content:privacy`, `content:personal_data_consent`, `content:yandex_metrica_consent` | `content/legal.html` | `legal_html` rendered from allowlisted repository Markdown, `legal_draft_notice`, `legal_navigation` with current-page indication, breadcrumbs and draft `meta_robots`. Privacy keeps CMS title/SEO; its body always comes from Markdown. |
+| `content:consent_revision` | `content/legal.html` | Exact archived consent text plus `legal_revision` with registered identifier, timestamp and SHA-256; unknown IDs return 404. |
 
 ## Product and cart data
 
@@ -137,12 +139,19 @@ only hides the address field and toggles its browser `required` hint; the view
 must enforce the delivery rule without JavaScript.
 
 Both forms carry hidden `submission_key` (UUID), `submission_token` (signed claim),
-and honeypot `website`. Claims include form kind and a stable server-session nonce;
+and honeypot `website`. The checkbox link uses `submission.consent_url`, which
+opens the exact archived revision named inside the claim. Claims include form
+kind, a stable server-session nonce and the consent revision ID;
 retail claims additionally include the shown product IDs, names, prices, whole
 weights, and `requires_confirmation`. Forms in separate tabs have independent
 keys/snapshots. Field errors for technical hidden controls become form-level
 messages. Phone formatting allows 5–15 digits, an initial +, spaces, parentheses,
 a dot and a hyphen; address/comment/company lengths are checked server-side.
+Validation and cart-confirmation re-renders preserve the signed revision and link.
+An invalid/unknown revision or a legacy token without a revision returns a fresh
+form with consent unchecked and cannot create a request. A successful idempotent
+retry resolves the already accepted request before other validation and keeps
+its saved revision.
 
 Before creating a retail request, lock products in stable ID order and re-read
 publication, name, price, composition and whole weights. Compare with the signed
@@ -176,6 +185,7 @@ product name or its data while explaining a cart change.
 - `orders:cart`, `orders:checkout`, `orders:success`
 - `inquiries:wholesale`, `inquiries:success`
 - `content:about`, `content:delivery`, `content:contacts`, `content:privacy`
+- `content:personal_data_consent`, `content:yandex_metrica_consent`
 
 ## Content persistence boundary
 
@@ -187,6 +197,20 @@ The reserved lead block remains the introduction. Empty sections are not shown
 as technical keys. Existing neutral UI fallbacks remain when material is missing.
 All stored text is escaped, with paragraph/line-break filters; never apply safe.
 See [data-layer.md](data-layer.md) for fixed keys, migrations and ORM boundaries.
+
+Legal document bodies are the explicit repository-file exception: the fixed
+allowlist in `content/legal_documents.py` reads `docs/legal/*.md` and uses
+Python-Markdown with tables. Raw HTML is escaped before conversion, local
+document links are reversed to site routes, and generated HTML is marked safe.
+No request values or CMS body text enter this renderer; placeholders remain
+literal text. Document headings, lists and tables are semantic; table wrappers
+allow keyboard focus and horizontal scrolling on narrow screens. All documents
+are linked in the footer. Retail and wholesale consent checkboxes link the
+separate consent document; the policy link is informational text outside the
+checkbox label. No analytics permission is bundled into a request form.
+The form link targets `/personal-data-consent/revisions/<revision_id>/`; the
+route renders the archived source bytes used to make the signed claim, with its
+identifier, registration time, and SHA-256.
 
 Delivery extends the shared content template with a map after all CMS sections.
 Only this view supplies `yandex_maps_api_key` from `YANDEX_MAPS_API_KEY`; a nonempty

@@ -32,6 +32,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from catalog.models import Category, Product
+from content.consent_revisions import get_current_consent_revision
 from inquiries.models import Inquiry
 from integrations.models import NotificationOutbox
 from integrations.notifications.contracts import (
@@ -214,6 +215,7 @@ class NotificationIntegrationTests(TransactionTestCase):
             price_per_kg="12.25",
             is_published=True,
         )
+        self.consent_revision = get_current_consent_revision()
 
     def tearDown(self):
         close_old_connections()
@@ -228,6 +230,7 @@ class NotificationIntegrationTests(TransactionTestCase):
             "comment": "Test retail comment",
             "privacy_consent": True,
             "privacy_consent_at": timezone.now(),
+            "privacy_consent_revision": self.consent_revision,
         }
         values.update(overrides)
         order = Order.objects.create(**values)
@@ -250,6 +253,7 @@ class NotificationIntegrationTests(TransactionTestCase):
             "email": "wholesale-contact@example.test",
             "privacy_consent": True,
             "privacy_consent_at": timezone.now(),
+            "privacy_consent_revision": self.consent_revision,
         }
         values.update(overrides)
         inquiry = Inquiry.objects.create(**values)
@@ -1217,15 +1221,15 @@ class NotificationIntegrationTests(TransactionTestCase):
             "NOTIFICATION_TO_EMAIL": "seller@example.test",
             "NOTIFICATION_LEASE_SECONDS": 300,
             "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
-            "EMAIL_HOST": "smtp.gmail.com",
-            "EMAIL_PORT": 587,
-            "EMAIL_HOST_USER": "preflight-user@gmail.com",
+            "EMAIL_HOST": "smtp.mail.ru",
+            "EMAIL_PORT": 465,
+            "EMAIL_HOST_USER": "preflight-user@mail.ru",
             "EMAIL_HOST_PASSWORD": "preflight-password-marker",
-            "EMAIL_USE_TLS": True,
-            "EMAIL_USE_SSL": False,
+            "EMAIL_USE_TLS": False,
+            "EMAIL_USE_SSL": True,
             "SMTP_ALLOW_INSECURE_LOCAL_AUTH": False,
             "EMAIL_TIMEOUT": 10,
-            "DEFAULT_FROM_EMAIL": "FishSite <preflight-user@gmail.com>",
+            "DEFAULT_FROM_EMAIL": "FishSite <preflight-user@mail.ru>",
         }
 
         for should_succeed in (True, False):
@@ -1248,7 +1252,7 @@ class NotificationIntegrationTests(TransactionTestCase):
                         call_command("check_notification_smtp", stdout=stdout)
                         self.assertIn("no email was sent", stdout.getvalue())
                     else:
-                        with self.assertRaisesRegex(CommandError, "gmail_smtp_connection_failed") as raised:
+                        with self.assertRaisesRegex(CommandError, "mailru_smtp_connection_failed") as raised:
                             call_command("check_notification_smtp", stdout=stdout)
                         self.assertNotIn("synthetic-preflight-secret-marker", str(raised.exception))
                 self.assertEqual(len(queries), 0)
@@ -1361,37 +1365,29 @@ class NotificationIntegrationTests(TransactionTestCase):
                         self.assertFalse(any(command.upper().startswith("DATA") for command in server.commands))
                         expected_error = "smtp_response_permanent"
                     else:
-                        fake_client = MagicMock(name="synthetic SMTP client")
-                        fake_client.starttls.side_effect = ssl.SSLCertVerificationError(
-                            1, f"certificate verification failed {server_error}"
-                        )
                         smtp_profile = {
                             "NOTIFICATION_BACKEND": "integrations.notifications.smtp.SMTPNotificationBackend",
                             "NOTIFICATION_TO_EMAIL": "seller@example.test",
                             "NOTIFICATION_LEASE_SECONDS": 300,
                             "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
-                            "EMAIL_HOST": "smtp.gmail.com",
-                            "EMAIL_PORT": 587,
-                            "EMAIL_HOST_USER": f"user-{marker}@gmail.com",
+                            "EMAIL_HOST": "smtp.mail.ru",
+                            "EMAIL_PORT": 465,
+                            "EMAIL_HOST_USER": f"user-{marker}@mail.ru",
                             "EMAIL_HOST_PASSWORD": f"password-{marker}",
-                            "EMAIL_USE_TLS": True,
-                            "EMAIL_USE_SSL": False,
+                            "EMAIL_USE_TLS": False,
+                            "EMAIL_USE_SSL": True,
                             "SMTP_ALLOW_INSECURE_LOCAL_AUTH": False,
                             "EMAIL_TIMEOUT": 10,
-                            "DEFAULT_FROM_EMAIL": f"FishSite <user-{marker}@gmail.com>",
+                            "DEFAULT_FROM_EMAIL": f"FishSite <user-{marker}@mail.ru>",
                         }
-                        for method in ("sendmail", "mail", "rcpt", "data"):
-                            getattr(fake_client, method).side_effect = AssertionError(
-                                f"{method} must not run after failed certificate verification"
-                            )
                         with override_settings(**smtp_profile), patch(
-                            "django.core.mail.backends.smtp.smtplib.SMTP",
-                            return_value=fake_client,
+                            "django.core.mail.backends.smtp.smtplib.SMTP_SSL",
+                            side_effect=ssl.SSLCertVerificationError(
+                                1, f"certificate verification failed {server_error}"
+                            ),
                         ):
                             self.assertEqual(NotificationWorker(SMTPNotificationBackend()).run_once(), 2)
                         expected_error = "smtp_tls_certificate_invalid"
-                        for method in ("sendmail", "mail", "rcpt", "data"):
-                            getattr(fake_client, method).assert_not_called()
 
                 self.assert_no_smtp_sensitive_log_values(
                     captured,

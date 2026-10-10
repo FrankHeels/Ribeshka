@@ -5,6 +5,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
+from content.models import ConsentRevision
+
 
 def _wholesale_inquiry_number():
     return f"W-{secrets.token_hex(5).upper()}"
@@ -19,6 +21,14 @@ class Inquiry(models.Model):
     need = models.TextField("Описание потребности", blank=True, default="")
     privacy_consent = models.BooleanField("Согласие на обработку данных", default=False)
     privacy_consent_at = models.DateTimeField("Время согласия")
+    privacy_consent_revision = models.ForeignKey(
+        ConsentRevision,
+        verbose_name="Редакция согласия",
+        related_name="wholesale_inquiries",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+    )
     submission_key = models.UUIDField("Ключ отправки", default=uuid.uuid4, unique=True, editable=False)
     success_token = models.UUIDField("Токен страницы успеха", default=uuid.uuid4, unique=True, editable=False)
     created_at = models.DateTimeField("Создан", auto_now_add=True)
@@ -43,6 +53,8 @@ class Inquiry(models.Model):
             errors["phone"] = "Укажите телефон."
         if not self.privacy_consent:
             errors["privacy_consent"] = "Для создания запроса требуется согласие на обработку данных."
+        if self._state.adding and self.privacy_consent_revision_id is None:
+            errors["privacy_consent_revision"] = "Для нового запроса требуется редакция принятого согласия."
         if errors:
             raise ValidationError(errors)
 

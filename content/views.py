@@ -1,10 +1,11 @@
 from django.conf import settings
 from django.db.models import Prefetch
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from catalog.models import Category, Product
-from .models import ContentPage
+from .legal_documents import LEGAL_DOCUMENTS, render_legal_document
+from .models import ConsentRevision, ContentPage
 
 
 PAGE_DEFAULTS = {
@@ -25,8 +26,8 @@ PAGE_DEFAULTS = {
     ),
     ContentPage.Key.PRIVACY: (
         "Политика обработки персональных данных",
-        "Текст политики обработки персональных данных будет опубликован после согласования.",
-        "Текст политики ещё не предоставлен заказчиком. Формы пока отключены и не сохраняют данные.",
+        "Правила обработки персональных данных на сайте «Калининградская рыбёшка».",
+        "Проект документа: перед применением заполните отмеченные поля и проверьте описанные условия обработки.",
     ),
 }
 
@@ -141,7 +142,80 @@ def contacts(request):
 
 def privacy(request):
     title, description, notice = PAGE_DEFAULTS[ContentPage.Key.PRIVACY]
-    return _page(request, key=ContentPage.Key.PRIVACY, title=title, description=description, notice=notice)
+    document = render_legal_document("policy")
+    return _page(
+        request,
+        key=ContentPage.Key.PRIVACY,
+        title=title,
+        description=description,
+        notice=notice,
+        template="content/legal.html",
+        extra_context={
+            "legal_html": document["html"],
+            "legal_draft_notice": document["draft_notice"],
+            "legal_current_key": "policy",
+            "legal_navigation": _legal_navigation("policy"),
+            "meta_robots": "noindex, nofollow",
+        },
+    )
+
+
+def _legal_navigation(current_key):
+    return [
+        {
+            "key": key,
+            "title": document["title"],
+            "url": reverse(document["route"]),
+            "current": key == current_key,
+        }
+        for key, document in LEGAL_DOCUMENTS.items()
+    ]
+
+
+def _standalone_legal_page(request, key):
+    document = render_legal_document(key)
+    return render(
+        request,
+        "content/legal.html",
+        {
+            "page_title": document["title"],
+            "meta_description": document["description"],
+            "meta_robots": "noindex, nofollow",
+            "breadcrumbs": [{"label": document["title"]}],
+            "legal_html": document["html"],
+            "legal_draft_notice": document["draft_notice"],
+            "legal_current_key": key,
+            "legal_navigation": _legal_navigation(key),
+        },
+    )
+
+
+def personal_data_consent(request):
+    return _standalone_legal_page(request, "consent")
+
+
+def consent_revision(request, revision_id):
+    revision = get_object_or_404(ConsentRevision, revision_id=revision_id)
+    document = render_legal_document("consent", source=revision.text)
+    return render(
+        request,
+        "content/legal.html",
+        {
+            "page_title": document["title"],
+            "meta_description": document["description"],
+            "meta_robots": "noindex, nofollow",
+            "breadcrumbs": [{"label": document["title"]}],
+            "legal_html": document["html"],
+            "legal_draft_notice": document["draft_notice"],
+            "legal_current_key": "consent",
+            "legal_navigation": _legal_navigation("consent"),
+            "legal_revision": revision,
+        },
+    )
+
+
+def yandex_metrica_consent(request):
+    return _standalone_legal_page(request, "metrica")
 
 
 def not_found(request, exception=None):
@@ -162,7 +236,6 @@ def sitemap(request):
             "content:about",
             "content:delivery",
             "content:contacts",
-            "content:privacy",
         )
     ]
     locations.extend(

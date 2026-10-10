@@ -4,9 +4,11 @@ from django.core.exceptions import ValidationError
 from django.db import DatabaseError
 from django.shortcuts import redirect
 
+from content.consent_revisions import get_consent_revision
 from integrations.public_forms import (
     PublicFormRateLimited,
     consume_public_form_rate_limit,
+    consent_revision_display_fields,
     read_submission_claim,
     render_public_form_unavailable,
 )
@@ -55,11 +57,6 @@ def submit_wholesale_request(request):
         request.POST.get("submission_key"),
         request.POST.get("submission_token"),
     )
-    submission = (
-        wholesale_submission_fields(request, claim["submission_key"])
-        if claim is not None
-        else wholesale_submission_fields(request)
-    )
 
     if claim is not None:
         try:
@@ -69,6 +66,24 @@ def submit_wholesale_request(request):
         if existing is not None:
             response = redirect("inquiries:success", token=existing.success_token)
             return private_no_store(response)
+
+    consent_revision = (
+        get_consent_revision(claim["consent_revision_id"])
+        if claim is not None
+        else None
+    )
+    if consent_revision is None:
+        claim = None
+        values["consent"] = False
+
+    if claim is not None:
+        submission = {
+            "submission_key": request.POST.get("submission_key", ""),
+            "submission_token": request.POST.get("submission_token", ""),
+            **consent_revision_display_fields(consent_revision),
+        }
+    else:
+        submission = wholesale_submission_fields(request)
 
     if claim is None:
         state_limited = _rate_limit_rejection(request, values, submission)

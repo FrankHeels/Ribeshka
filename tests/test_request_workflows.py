@@ -4,11 +4,13 @@ from decimal import Decimal
 import uuid
 from unittest.mock import patch
 
+from django.core import signing
 from django.db import OperationalError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from catalog.models import Category, Product
+from content.models import ConsentRevision
 from inquiries.models import Inquiry
 from integrations.models import NotificationOutbox
 from orders.cart import CART_SESSION_KEY
@@ -84,6 +86,10 @@ class PrimaryRequestWorkflowTests(TestCase):
             ).exists()
         )
 
+    @staticmethod
+    def revision_id(submission):
+        return submission["consent_url"].split("/revisions/", 1)[1].strip("/")
+
     def test_accumulated_cart_no_js_delivery_post_saves_decimal_snapshots_and_private_success(self):
         self.add(self.client, weight="2")
         self.add(self.client, weight="3")
@@ -116,6 +122,7 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertEqual(order.delivery_address, "Primary test delivery address")
         self.assertTrue(order.privacy_consent)
         self.assertIsNotNone(order.privacy_consent_at)
+        self.assertEqual(order.privacy_consent_revision.revision_id, self.revision_id(submission))
         items = list(order.items.all())
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].product_name_snapshot, self.product.name)
@@ -191,6 +198,7 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertEqual(inquiry.need, "")
         self.assertTrue(inquiry.privacy_consent)
         self.assertIsNotNone(inquiry.privacy_consent_at)
+        self.assertEqual(inquiry.privacy_consent_revision.revision_id, self.revision_id(submission))
         self.assertEqual(NotificationOutbox.objects.filter(inquiry=inquiry).count(), 1)
 
         success = self.client.get(response.url)
@@ -198,6 +206,77 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertContains(success, inquiry.inquiry_number)
         self.assertNotContains(success, "Primary Wholesale Contact")
         self.assertNotContains(success, "+7 (921) 555-03-04")
+
+    def test_retail_post_keeps_the_signed_revision_when_the_source_changes(self):
+        self.add(self.client)
+        old_text = "# Согласие\n\nАрхивный текст редакции до изменения.\n"
+        new_text = "# Согласие\n\nНовый текст после изменения Markdown.\n"
+        with patch("content.consent_revisions.read_legal_document_source", return_value=old_text):
+            page = self.client.get(reverse("orders:cart"))
+        old_submission = page.context["submission"]
+        old_revision_id = self.revision_id(old_submission)
+        old_revision = ConsentRevision.objects.get(revision_id=old_revision_id)
+        self.assertContains(page, f'href="{old_submission["consent_url"]}"')
+
+        with patch("content.consent_revisions.read_legal_document_source", return_value=new_text):
+            response = self.client.post(
+                reverse("orders:cart"),
+                self.retail_data(
+                    old_submission,
+                    pickup_method="pickup",
+                    address="",
+                    # A plain POST value has no authority; only the signed claim is used.
+                    consent_revision_id=f"sha256:{'0' * 64}",
+                ),
+            )
+            archived_page = self.client.get(old_submission["consent_url"])
+            new_page = self.client.get(reverse("orders:cart"))
+
+        self.assertEqual(response.status_code, 302)
+        order = Order.objects.get(submission_key=old_submission["submission_key"])
+        self.assertEqual(order.privacy_consent_revision_id, old_revision.pk)
+        old_revision.refresh_from_db()
+        self.assertEqual(old_revision.text, old_text)
+        self.assertEqual(archived_page.status_code, 200)
+        self.assertContains(archived_page, "Архивный текст редакции до изменения.")
+        self.assertNotContains(archived_page, "Новый текст после изменения Markdown.")
+        self.assertNotEqual(self.revision_id(new_page.context["submission"]), old_revision_id)
+
+    def test_missing_or_unknown_revision_in_signed_token_requires_new_consent(self):
+        page = self.client.get(reverse("inquiries:wholesale"))
+        submission = page.context["submission"]
+        salt = "fishsite.public-form.wholesale"
+        payload = signing.loads(submission["submission_token"], salt=salt)
+
+        legacy_payload = dict(payload)
+        legacy_payload.pop("consent_revision_id")
+        legacy_submission = dict(
+            submission,
+            submission_token=signing.dumps(legacy_payload, salt=salt, compress=True),
+        )
+        legacy_response = self.client.post(
+            reverse("inquiries:wholesale"),
+            self.wholesale_data(legacy_submission),
+        )
+        self.assertEqual(legacy_response.status_code, 400)
+        self.assertFalse(Inquiry.objects.filter(submission_key=submission["submission_key"]).exists())
+        self.assertNotEqual(legacy_response.context["submission"]["submission_key"], submission["submission_key"])
+        consent_control = legacy_response.content.decode().split('id="id_consent"', 1)[1].split(">", 1)[0]
+        self.assertNotIn("checked", consent_control)
+
+        unknown_payload = dict(payload, consent_revision_id=f"sha256:{'0' * 64}")
+        unknown_submission = dict(
+            submission,
+            submission_token=signing.dumps(unknown_payload, salt=salt, compress=True),
+        )
+        unknown_response = self.client.post(
+            reverse("inquiries:wholesale"),
+            self.wholesale_data(unknown_submission),
+        )
+        self.assertEqual(unknown_response.status_code, 400)
+        self.assertFalse(Inquiry.objects.filter(submission_key=submission["submission_key"]).exists())
+        consent_control = unknown_response.content.decode().split('id="id_consent"', 1)[1].split(">", 1)[0]
+        self.assertNotIn("checked", consent_control)
 
     def test_required_retail_contacts_consent_and_delivery_address_are_validated(self):
         self.add(self.client)
@@ -313,6 +392,7 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assert_no_retail_request(stale_tab)
         fresh = response.context["submission"]
         self.assertNotEqual(fresh["submission_key"], stale_tab["submission_key"])
+        self.assertEqual(fresh["consent_url"], stale_tab["consent_url"])
         self.assertContains(response, "изменились", status_code=409)
 
         unconfirmed = self.client.post(
@@ -333,6 +413,7 @@ class PrimaryRequestWorkflowTests(TestCase):
         )
         self.assertEqual(confirmed.status_code, 302)
         order = Order.objects.get(submission_key=fresh["submission_key"])
+        self.assertEqual(order.privacy_consent_revision.revision_id, self.revision_id(stale_tab))
         self.assertEqual(
             list(order.items.values_list("product_name_snapshot", "price_per_kg_snapshot", "desired_weight")),
             [
@@ -391,6 +472,7 @@ class PrimaryRequestWorkflowTests(TestCase):
         )
         order = Order.objects.get(submission_key=submission["submission_key"])
         self.assertEqual(Order.objects.filter(submission_key=submission["submission_key"]).count(), 1)
+        self.assertEqual(order.privacy_consent_revision.revision_id, self.revision_id(submission))
         self.assertEqual(NotificationOutbox.objects.filter(order=order).count(), 1)
 
         next_submission = self.submission(self.client)

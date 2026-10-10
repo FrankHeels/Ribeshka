@@ -16,6 +16,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from catalog.models import Category, Product, ProductImage
+from content.consent_revisions import get_current_consent_revision
 from content.models import ContentPage, ContentSection, HOME_SECTION_KEYS
 from inquiries.models import Inquiry
 from integrations.models import NotificationOutbox
@@ -28,13 +29,14 @@ class ModelTests(TestCase):
     def setUpTestData(cls):
         cls.category = Category.objects.create(name="Тестовая категория", slug="test-category")
         cls.product = Product.objects.create(name="Тестовый товар", slug="test-product", category=cls.category, price_per_kg=Decimal("10.05"))
+        cls.consent_revision = get_current_consent_revision()
 
     def order(self, **overrides):
-        values = dict(name="Тест", phone="000000000", fulfillment_method="pickup", privacy_consent=True, privacy_consent_at=timezone.now())
+        values = dict(name="Тест", phone="000000000", fulfillment_method="pickup", privacy_consent=True, privacy_consent_at=timezone.now(), privacy_consent_revision=self.consent_revision)
         return Order.objects.create(**(values | overrides))
 
     def inquiry(self, **overrides):
-        values = dict(contact_name="Тест", phone="000000000", need="Тестовая потребность", privacy_consent=True, privacy_consent_at=timezone.now())
+        values = dict(contact_name="Тест", phone="000000000", need="Тестовая потребность", privacy_consent=True, privacy_consent_at=timezone.now(), privacy_consent_revision=self.consent_revision)
         return Inquiry.objects.create(**(values | overrides))
 
     def item(self, **overrides):
@@ -336,6 +338,7 @@ class AdminTests(TestCase):
     def setUpTestData(cls):
         cls.editor = get_user_model().objects.create_user(username="test-editor", is_staff=True)
         cls.editor.user_permissions.set(Permission.objects.filter(content_type__app_label="content"))
+        cls.consent_revision = get_current_consent_revision()
 
     def payload(self, page, overrides=None):
         sections = list(page.sections.all())
@@ -421,7 +424,7 @@ class AdminTests(TestCase):
     def test_request_snapshots_are_read_only_in_admin(self):
         user = get_user_model().objects.create_superuser(username="test-admin", email="")
         self.client.force_login(user)
-        order = Order.objects.create(name="Тест", phone="000000000", fulfillment_method="pickup", privacy_consent=True, privacy_consent_at=timezone.now())
+        order = Order.objects.create(name="Тест", phone="000000000", fulfillment_method="pickup", privacy_consent=True, privacy_consent_at=timezone.now(), privacy_consent_revision=self.consent_revision)
         item = OrderItem.objects.create(order=order, product_name_snapshot="Исторический товар", price_per_kg_snapshot=Decimal("10"), desired_weight=Decimal("1"))
         url = reverse("admin:orders_order_change", args=[order.pk])
         response = self.client.get(url)

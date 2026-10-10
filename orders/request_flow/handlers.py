@@ -4,9 +4,11 @@ from django.core.exceptions import ValidationError
 from django.db import DatabaseError
 from django.shortcuts import redirect
 
+from content.consent_revisions import get_consent_revision
 from integrations.public_forms import (
     PublicFormRateLimited,
     consume_public_form_rate_limit,
+    consent_revision_display_fields,
     read_submission_claim,
     render_public_form_unavailable,
 )
@@ -75,15 +77,6 @@ def submit_retail_request(request):
         request.POST.get("submission_key"),
         request.POST.get("submission_token"),
     )
-    submitted_fields = (
-        {
-            "submission_key": request.POST.get("submission_key", ""),
-            "submission_token": request.POST.get("submission_token", ""),
-        }
-        if claim is not None
-        else None
-    )
-
     # Resolve a previously accepted key before cart state, form validation, or
     # rate limiting so a lost response can safely be retried after cart cleanup.
     if claim is not None:
@@ -96,8 +89,17 @@ def submit_retail_request(request):
                 redirect("orders:success", token=existing.success_token)
             )
 
+    consent_revision = (
+        get_consent_revision(claim["consent_revision_id"])
+        if claim is not None
+        else None
+    )
+    if consent_revision is None:
+        claim = None
+
     if claim is None:
         state = get_cart_state(request)
+        values["consent"] = False
         fresh_fields = retail_submission_fields(request, state)
         limited = _rate_limit_rejection(request, values, fresh_fields)
         if limited is not None:
@@ -111,6 +113,11 @@ def submit_retail_request(request):
                 submission=fresh_fields,
             )
         )
+    submitted_fields = {
+        "submission_key": request.POST.get("submission_key", ""),
+        "submission_token": request.POST.get("submission_token", ""),
+        **consent_revision_display_fields(consent_revision),
+    }
     if not form.is_valid():
         limited = _rate_limit_rejection(request, values, submitted_fields)
         if limited is not None:
@@ -192,6 +199,7 @@ def submit_retail_request(request):
             request,
             state,
             requires_confirmation=True,
+            consent_revision=consent_revision,
         )
         return _private_no_store(
             _render_cart(

@@ -31,18 +31,32 @@ def get_session_nonce(request):
     return str(nonce)
 
 
-def make_submission_fields(request, form_kind, submission_key, snapshot, *, requires_confirmation=False):
+def make_submission_fields(
+    request,
+    form_kind,
+    submission_key,
+    snapshot,
+    *,
+    consent_revision,
+    requires_confirmation=False,
+):
     key = uuid.UUID(str(submission_key))
+    revision_id = consent_revision.revision_id
     payload = {
         "kind": form_kind,
         "key": str(key),
         "nonce": get_session_nonce(request),
         "snapshot": snapshot,
+        "consent_revision_id": revision_id,
         "requires_confirmation": bool(requires_confirmation),
     }
     return {
         "submission_key": str(key),
         "submission_token": signing.dumps(payload, salt=f"fishsite.public-form.{form_kind}", compress=True),
+        "consent_url": reverse(
+            "content:consent_revision",
+            kwargs={"revision_id": revision_id},
+        ),
     }
 
 
@@ -65,12 +79,26 @@ def read_submission_claim(request, form_kind, submission_key, submission_token):
         return None
     if not isinstance(payload.get("snapshot"), dict):
         return None
+    revision_id = payload.get("consent_revision_id")
+    if not isinstance(revision_id, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", revision_id):
+        return None
     if not isinstance(payload.get("requires_confirmation"), bool):
         return None
     return {
         "submission_key": key,
         "snapshot": payload["snapshot"],
+        "consent_revision_id": revision_id,
         "requires_confirmation": payload["requires_confirmation"],
+    }
+
+
+def consent_revision_display_fields(consent_revision):
+    """Build the public link for a revision already resolved from a signed token."""
+    return {
+        "consent_url": reverse(
+            "content:consent_revision",
+            kwargs={"revision_id": consent_revision.revision_id},
+        ),
     }
 
 

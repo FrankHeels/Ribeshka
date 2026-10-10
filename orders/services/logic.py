@@ -52,7 +52,7 @@ def retail_submission_rejection(
     return None
 
 
-def build_retail_order_data(cleaned_data, key, current_items, created_at):
+def build_retail_order_data(cleaned_data, key, current_items, created_at, *, consent_revision):
     """Convert validated form and locked cart values into persistence payloads."""
     order_data = {
         "name": cleaned_data["name"],
@@ -63,6 +63,7 @@ def build_retail_order_data(cleaned_data, key, current_items, created_at):
         "comment": cleaned_data["comment"],
         "privacy_consent": True,
         "privacy_consent_at": created_at,
+        "privacy_consent_revision": consent_revision,
         "submission_key": key,
     }
     item_data = [

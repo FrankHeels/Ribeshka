@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+  <header class="page-heading legal-page-heading">
+    <p class="section-kicker">Персональные данные</p>
+    <h1>{{ page_title }}</h1>
+  </header>
+  {% if legal_revision %}
+    <aside class="legal-revision-meta" aria-label="Сведения об архивной редакции">
+      <p>Архивная редакция: <code>{{ legal_revision.revision_id }}</code></p>
+      <p>Зарегистрирована: <time datetime="{{ legal_revision.registered_at|date:'c' }}">{{ legal_revision.registered_at|date:'d.m.Y H:i T' }}</time></p>
+      <p>SHA-256 исходного Markdown: <code>{{ legal_revision.sha256 }}</code></p>
+    </aside>
+  {% endif %}
+  <div class="legal-document-layout">
+    <aside class="legal-draft-notice" role="note" aria-label="Статус документа">
+      <strong>Проект документа</strong>
+      <p>{{ legal_draft_notice }}</p>
+    </aside>
+    <nav class="legal-document-nav" aria-label="Документы о персональных данных">
+      <span class="footer-heading">Документы</span>
+      <ul>
+        {% for item in legal_navigation %}
+          <li><a href="{{ item.url }}"{% if item.current %} aria-current="page"{% endif %}>{{ item.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+    <article class="content-article legal-document-article" aria-label="{{ page_title }}">
+      <div class="legal-document-body">{{ legal_html }}</div>
+    </article>
+  </div>
+{% endblock %}

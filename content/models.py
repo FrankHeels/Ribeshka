@@ -1,6 +1,9 @@
+import hashlib
+
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+from django.db.models.query import QuerySet
 
 
 CONTENT_PAGE_KEYS = ("home", "about", "delivery", "contacts", "privacy")
@@ -49,6 +52,83 @@ class ContentPage(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("Фиксированные страницы сайта нельзя удалять.")
+
+
+class ConsentRevisionQuerySet(QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("Архивные редакции согласия нельзя изменять.")
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        raise ValidationError("Архивные редакции согласия нельзя изменять.")
+
+    def bulk_create(
+        self,
+        objs,
+        batch_size=None,
+        ignore_conflicts=False,
+        update_conflicts=False,
+        update_fields=None,
+        unique_fields=None,
+    ):
+        if update_conflicts:
+            raise ValidationError("Архивные редакции согласия нельзя обновлять.")
+        raise ValidationError("Создавайте архивные редакции согласия через save().")
+
+    def delete(self):
+        raise ValidationError("Архивные редакции согласия нельзя удалять.")
+
+
+class ConsentRevision(models.Model):
+    """Immutable copy of a consent Markdown source used by a public form."""
+
+    revision_id = models.CharField("Идентификатор редакции", max_length=71, unique=True)
+    sha256 = models.CharField("SHA-256 исходного Markdown", max_length=64, unique=True)
+    text = models.TextField("Текст исходной редакции")
+    registered_at = models.DateTimeField("Зарегистрирована", auto_now_add=True)
+
+    objects = ConsentRevisionQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = "редакция согласия на обработку данных"
+        verbose_name_plural = "архив редакций согласия на обработку данных"
+        ordering = ("-registered_at", "-pk")
+
+    def __str__(self):
+        return self.revision_id
+
+    def clean(self):
+        super().clean()
+        if not self.text:
+            raise ValidationError({"text": "Текст редакции не может быть пустым."})
+        digest = hashlib.sha256(self.text.encode("utf-8")).hexdigest()
+        if self.sha256 != digest or self.revision_id != f"sha256:{digest}":
+            raise ValidationError("Идентификатор и хеш должны соответствовать тексту редакции.")
+
+    def save(self, *args, **kwargs):
+        using = kwargs.get("using") or self._state.db or "default"
+        if self.pk:
+            previous = type(self).objects.using(using).filter(pk=self.pk).first()
+            if previous is not None and (
+                self.revision_id,
+                self.sha256,
+                self.text,
+                self.registered_at,
+            ) != (
+                previous.revision_id,
+                previous.sha256,
+                previous.text,
+                previous.registered_at,
+            ):
+                raise ValidationError("Архивные редакции согласия нельзя изменять.")
+        else:
+            digest = hashlib.sha256(self.text.encode("utf-8")).hexdigest()
+            self.sha256 = digest
+            self.revision_id = f"sha256:{digest}"
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Архивные редакции согласия нельзя удалять.")
 
 
 HOME_SECTION_KEYS = (

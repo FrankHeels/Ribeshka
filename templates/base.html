@@ -11,7 +11,7 @@
     <link rel="icon" type="image/png" href="{% static 'img/brand-logo.png' %}">
     <link rel="preload" href="{% static 'fonts/cormorant-garamond-normal-cyrillic.woff2' %}" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="{% static 'fonts/golos-text-normal-cyrillic.woff2' %}" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="{% static 'css/site.css' %}?v=2026-10-08-2">
+    <link rel="stylesheet" href="{% static 'css/site.css' %}?v=2026-10-09-1">
     {% block extra_head %}{% endblock %}
   </head>
   <body class="site-body {% block body_class %}{% endblock %}">
@@ -83,7 +83,9 @@
         <nav class="footer-navigation" aria-label="Информация">
           <span class="footer-heading">Информация</span>
           <a href="{% url 'content:contacts' %}">Контакты</a>
-          <a href="{% url 'content:privacy' %}">Обработка персональных данных</a>
+          <a href="{% url 'content:privacy' %}">Политика обработки персональных данных</a>
+          <a href="{% url 'content:personal_data_consent' %}">Согласие на обработку персональных данных</a>
+          <a href="{% url 'content:yandex_metrica_consent' %}">Согласие на Яндекс Метрику</a>
           <a href="{% url 'orders:cart' %}">Корзина</a>
         </nav>
       </div>

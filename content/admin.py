@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib import admin
 
-from .models import ContentPage, ContentSection, HOME_SECTION_LABELS
+from .models import ConsentRevision, ContentPage, ContentSection, HOME_SECTION_LABELS
 
 
 class ContentSectionInlineForm(forms.ModelForm):
@@ -69,3 +69,18 @@ class ContentPageAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related("sections")
+
+
+@admin.register(ConsentRevision)
+class ConsentRevisionAdmin(admin.ModelAdmin):
+    list_display = ("revision_id", "registered_at", "sha256")
+    search_fields = ("revision_id", "sha256")
+    readonly_fields = tuple(field.name for field in ConsentRevision._meta.fields)
+    fields = readonly_fields
+    ordering = ("-registered_at", "-pk")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

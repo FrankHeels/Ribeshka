@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connections, transaction
 from django.utils import timezone
 
+from content.consent_revisions import get_consent_revision, get_current_consent_revision
 from integrations.public_forms import (
     acquire_advisory_transaction_lock,
     consume_public_form_rate_limit,
@@ -23,12 +24,21 @@ class InquirySubmissionResult:
     inquiry: Inquiry
 
 
-def wholesale_submission_fields(request, submission_key=None):
+def wholesale_submission_fields(request, submission_key=None, *, consent_revision=None, consent_revision_id=None):
+    if consent_revision is None:
+        consent_revision = (
+            get_consent_revision(consent_revision_id)
+            if consent_revision_id
+            else get_current_consent_revision()
+        )
+    if consent_revision is None:
+        raise ValueError("Архивная редакция согласия не найдена.")
     return make_submission_fields(
         request,
         "wholesale",
         submission_key or uuid.uuid4(),
         {"form": "wholesale"},
+        consent_revision=consent_revision,
     )
 
 
@@ -50,6 +60,10 @@ def submit_wholesale_inquiry(request, cleaned_data, claim, *, using="default"):
         if existing is not None:
             return InquirySubmissionResult("existing", existing)
 
+        revision = get_consent_revision(claim.get("consent_revision_id"), using=using)
+        if revision is None:
+            raise ValidationError({"privacy_consent_revision": "Редакция согласия больше недоступна."})
+
         consume_public_form_rate_limit(request, "wholesale", using=using)
 
         inquiry = Inquiry(
@@ -60,6 +74,7 @@ def submit_wholesale_inquiry(request, cleaned_data, claim, *, using="default"):
             need="",
             privacy_consent=True,
             privacy_consent_at=timezone.now(),
+            privacy_consent_revision=revision,
             submission_key=key,
         )
         try:
