@@ -6,7 +6,7 @@ from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-# The test profile must never load application/Gmail credentials.
+# The test profile must never load application/SMTP credentials.
 _TEST_PROFILE = os.environ.get("DJANGO_SETTINGS_MODULE") == "fishsite.settings_test"
 if not _TEST_PROFILE and os.environ.get("FISHSITE_SKIP_DOTENV") != "1":
     load_dotenv(BASE_DIR / ".env", override=False)
@@ -142,7 +142,7 @@ NOTIFICATION_LEASE_SECONDS = _integer_environment_setting("NOTIFICATION_LEASE_SE
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = _environment.get("SMTP_HOST", "")
-EMAIL_PORT = _integer_environment_setting("SMTP_PORT", "587")
+EMAIL_PORT = _integer_environment_setting("SMTP_PORT", "465")
 EMAIL_HOST_USER = _environment.get("SMTP_USERNAME", "")
 EMAIL_HOST_PASSWORD = _environment.get("SMTP_PASSWORD", "")
 EMAIL_USE_TLS = _boolean_environment_setting("SMTP_USE_TLS")

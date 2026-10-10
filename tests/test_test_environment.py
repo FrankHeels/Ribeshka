@@ -71,9 +71,14 @@ class TestEnvironmentGuards(SimpleTestCase):
         self.assertNotIn("DJANGO_DB_NAME", env)
 
     def test_network_guard_blocks_external_smtp_even_with_overridden_settings(self):
-        for host in ("smtp.gmail.com", "8.8.8.8", "2001:4860:4860::8888"):
+        for host, port in (
+            ("smtp.mail.ru", 465),
+            ("smtp.gmail.com", 587),
+            ("8.8.8.8", 587),
+            ("2001:4860:4860::8888", 587),
+        ):
             with self.subTest(host=host), self.assertRaises(RuntimeError):
-                _network_guard("socket.connect", (None, (host, 587)))
+                _network_guard("socket.connect", (None, (host, port)))
         _network_guard("socket.connect", (None, ("127.0.0.1", 15432)))
 
     def run_python(self, args, env=None):
@@ -93,7 +98,7 @@ class TestEnvironmentGuards(SimpleTestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Tests require", result.stderr)
 
-    def test_profile_does_not_read_dotenv_or_ambient_gmail_and_requires_test_password(self):
+    def test_profile_does_not_read_dotenv_or_ambient_smtp_and_requires_test_password(self):
         env = worker_environment(self.config())
         env.update({"SMTP_PASSWORD": "secret-marker", "SMTP_PORT": "invalid-primary-value"})
         code = """

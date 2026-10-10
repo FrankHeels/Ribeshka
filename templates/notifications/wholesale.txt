@@ -1,11 +1,14 @@
-{% autoescape off %}Оптовый запрос {{ notification.request_number }}
+{% autoescape off %}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ОПТОВЫЙ ЗАПРОС № {{ notification.request_number }}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Создан: {{ notification.created_at|date:"d.m.Y H:i" }}
 
+КОНТАКТЫ
 Контактное лицо: {{ notification.contact_name }}
 Компания: {{ notification.company|default:"не указана" }}
 Телефон: {{ notification.phone }}
 Email: {{ notification.email|default:"не указан" }}
 {% if notification.need %}
-Описание потребности из исторической заявки:
+ОПИСАНИЕ ПОТРЕБНОСТИ
 {{ notification.need }}
 {% endif %}{% endautoescape %}

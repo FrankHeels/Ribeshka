@@ -39,7 +39,7 @@ def validate_live_connection(raw, *, maintenance=False):
 
 def worker_environment(database):
     validate_database(database)
-    # Explicit allowlist prevents forwarding Gmail or primary DB credentials.
+    # Explicit allowlist prevents forwarding SMTP or primary DB credentials.
     env = {key: os.environ[key] for key in ("PATH", "HOME", "TMPDIR", "SYSTEMROOT") if key in os.environ}
     env["DJANGO_SETTINGS_MODULE"] = "fishsite.settings_test"
     for key in ("NAME", "USER", "PASSWORD", "HOST", "PORT"):

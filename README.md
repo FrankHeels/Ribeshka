@@ -67,37 +67,31 @@ Django/Gunicorn, Nginx и отдельный worker) используйте
 
 ## Уведомления продавцу
 
-Для первого подключения выбран личный аккаунт Gmail. Включите в аккаунте
-[двухэтапную аутентификацию](https://support.google.com/accounts/answer/185839?hl=ru),
-затем создайте отдельный [пароль приложения для FishSite](https://support.google.com/accounts/answer/185833?hl=ru).
-Пароли приложений доступны только при включённой двухэтапной аутентификации;
-Google может не показывать эту возможность для аккаунтов с Advanced Protection,
-аккаунтов, где второй этап настроен только аппаратными ключами, или если
-организация Google Workspace ограничила эту возможность.
-При смене основного пароля Google пароль приложения аннулируется: создайте
-новый и обновите окружение worker перед повторной проверкой соединения.
+Для отправки используйте ящик Mail.ru/VK Почты заказчика. В настройках ящика
+включите доступ к почте по SMTP и создайте пароль для внешнего приложения;
+используйте полный адрес ящика в `SMTP_USERNAME`, этот пароль в `SMTP_PASSWORD`
+и тот же адрес в `NOTIFICATION_FROM_EMAIL`. `NOTIFICATION_TO_EMAIL` задаёт
+единственный адрес продавца-получателя. Не отправляйте пароль в Git или чат.
 
-Рекомендуемый Gmail-профиль из `.env.example`: `smtp.gmail.com`, порт 587 с
-STARTTLS, `SMTP_USE_TLS=true`, `SMTP_USE_SSL=false`. Альтернативный профиль — порт 465,
-`SMTP_USE_TLS=false`, `SMTP_USE_SSL=true`; этот вариант пока не проверялся с
-реальным аккаунтом. Имя пользователя — полный адрес аккаунта Gmail, а адрес
-`NOTIFICATION_FROM_EMAIL` должен совпадать с ним. `NOTIFICATION_TO_EMAIL` задаёт
-адрес продавца-получателя.
+Рекомендуемый профиль из `.env.example`: `smtp.mail.ru`, порт 465 с SSL/TLS,
+`SMTP_USE_TLS=false`, `SMTP_USE_SSL=true`. См. [официальную инструкцию по
+подключению сторонней почтовой программы](https://help.mail.ru/mail/login/mailer/)
+и [паролям для внешних приложений](https://help.mail.ru/mail/login/2auth/).
 
 Пример для zsh; адреса ниже — единственные значения-заполнители. Пароль
 вводится скрыто, попадает только в окружение текущего shell и его дочерних
 процессов, а не в командную строку или историю:
 
 ```sh
-export SMTP_HOST='smtp.gmail.com'
-export SMTP_PORT=587
-export SMTP_USE_TLS=true
-export SMTP_USE_SSL=false
+export SMTP_HOST='smtp.mail.ru'
+export SMTP_PORT=465
+export SMTP_USE_TLS=false
+export SMTP_USE_SSL=true
 export SMTP_ALLOW_INSECURE_LOCAL_AUTH=false
-export SMTP_USERNAME='your-account@gmail.com'
-export NOTIFICATION_FROM_EMAIL='your-account@gmail.com'
-export NOTIFICATION_TO_EMAIL='your-account@gmail.com'
-read -rs 'SMTP_APP_PASSWORD?Введите пароль приложения Gmail: '
+export SMTP_USERNAME='your-account@mail.ru'
+export NOTIFICATION_FROM_EMAIL='your-account@mail.ru'
+export NOTIFICATION_TO_EMAIL='seller@mail.ru'
+read -rs 'SMTP_APP_PASSWORD?Введите пароль для внешнего приложения Mail.ru: '
 printf '\n'
 export SMTP_PASSWORD="$SMTP_APP_PASSWORD"
 unset SMTP_APP_PASSWORD
@@ -112,13 +106,13 @@ unset SMTP_APP_PASSWORD
 скрытого ввода переменная действует в текущем shell и дочерних процессах; в новом
 терминале введите её снова.
 
-До подключения worker выполните Gmail-проверку:
+До подключения worker выполните Mail.ru-проверку:
 
 ```sh
 uv run python manage.py check_notification_smtp
 ```
 
-Команда проверяет выбранный Gmail-профиль, устанавливает соединение, выполняет
+Команда проверяет выбранный Mail.ru-профиль, устанавливает соединение, выполняет
 TLS и SMTP AUTH, затем закрывает его. Она не отправляет письмо, не обращается к
 outbox и не подключается к БД. Успех подтверждает только соединение и приём
 учётных данных сервером. Ошибки проверки после загрузки настроек показывают
@@ -150,21 +144,18 @@ uv run python manage.py process_notifications --once
 резервное сканирование — раз в 60 секунд, lease — 300 секунд. Администратор
 может повторить задачу после устранения причины.
 
-Личный Gmail обычно ограничивает отправку примерно 500 сообщениями в сутки;
-ориентир для Google Workspace — около 2000. При превышении лимита блокировка
-отправки может длиться 1–24 часа, поэтому текущие пять попыток не покрывают весь
-этот срок: задача может перейти в `manual_review`, и её следует повторить после
-снятия ограничения. Подробнее: [лимиты Gmail](https://support.google.com/mail/answer/22839?hl=ru)
-и [отправка почты приложениями](https://knowledge.workspace.google.com/admin/gmail/send-email-from-a-printer-scanner-or-app?hl=ru).
+Mail.ru может ограничивать отправку по текущим лимитам и правилам ящика.
+При постоянной SMTP-ошибке или исчерпании пяти попыток задача перейдёт в
+`manual_review`; после устранения причины её можно повторить из админки.
 
 `sent` означает принятие письма SMTP-сервером, а не попадание во входящие. Если
 соединение прервётся после принятия письма, но до подтверждения, worker может
 повторить отправку и получатель может увидеть дубликат.
 
-### Локальная проверка Gmail
+### Локальная проверка Mail.ru
 
 Для согласованной ручной проверки обычного сайта на основной локальной БД
-`fishsite` используйте [практический гайд](docs/gmail-smtp-practical-test.md).
+`fishsite` используйте [практический гайд](docs/mailru-smtp-practical-test.md).
 Он запускает `manage.py` напрямую, сохраняет введённый через браузер заказ
 в основной БД и предупреждает об отправке накопленных готовых задач очереди.
 Следующие команды относятся к отдельному сценарию с синтетическими заявками:
@@ -176,26 +167,26 @@ Django через явный `DJANGO_DB_NAME`:
 
 ```sh
 createdb --host="${DJANGO_DB_HOST:-127.0.0.1}" --port="${DJANGO_DB_PORT:-5432}" \
-  --username="$DJANGO_DB_USER" --owner="$DJANGO_DB_USER" fishsite_gmail_validation
-DJANGO_DB_NAME=fishsite_gmail_validation uv run python manage.py migrate
-DJANGO_DB_NAME=fishsite_gmail_validation uv run python manage.py seed_demo_catalog
-DJANGO_DB_NAME=fishsite_gmail_validation uv run python manage.py createsuperuser
-DJANGO_DB_NAME=fishsite_gmail_validation uv run python manage.py check_notification_smtp
-DJANGO_DB_NAME=fishsite_gmail_validation uv run python manage.py runserver
+  --username="$DJANGO_DB_USER" --owner="$DJANGO_DB_USER" fishsite_mailru_validation
+DJANGO_DB_NAME=fishsite_mailru_validation uv run python manage.py migrate
+DJANGO_DB_NAME=fishsite_mailru_validation uv run python manage.py seed_demo_catalog
+DJANGO_DB_NAME=fishsite_mailru_validation uv run python manage.py createsuperuser
+DJANGO_DB_NAME=fishsite_mailru_validation uv run python manage.py check_notification_smtp
+DJANGO_DB_NAME=fishsite_mailru_validation uv run python manage.py runserver
 ```
 
 Перед этим задайте `DJANGO_DB_USER` и остальные параметры локальной PostgreSQL
-роли обычным способом; у неё должно быть право на `CREATEDB`. Gmail-переменные
+роли обычным способом; у неё должно быть право на `CREATEDB`. SMTP-переменные
 можно хранить в локальном `.env`: он автоматически доступен каждому процессу, а
 переменные окружения процесса имеют приоритет. Если используете скрытый ввод
 вместо `.env`, повторите его в новой вкладке терминала. В запущенном локальном
 сайте создайте синтетические
 розничную и оптовую заявки через публичные формы. До запуска `--once` проверьте,
-что процесс направлен в `fishsite_gmail_validation` и в его outbox лежат только
+что процесс направлен в `fishsite_mailru_validation` и в его outbox лежат только
 эти тестовые заявки. Затем выполните:
 
 ```sh
-DJANGO_DB_NAME=fishsite_gmail_validation uv run python manage.py process_notifications --once
+DJANGO_DB_NAME=fishsite_mailru_validation uv run python manage.py process_notifications --once
 ```
 
 Проверьте оба письма в почтовом ящике и статусы двух синтетических задач в
@@ -203,11 +194,11 @@ DJANGO_DB_NAME=fishsite_gmail_validation uv run python manage.py process_notific
 после его запуска:
 
 ```sh
-DJANGO_DB_NAME=fishsite_gmail_validation uv run python manage.py process_notifications
+DJANGO_DB_NAME=fishsite_mailru_validation uv run python manage.py process_notifications
 ```
 
-Реальную отправку следует проверять только после подготовки личного Gmail и
-пароля приложения. Не запускайте такой сценарий до готовности аккаунта и никогда
+Реальную отправку следует проверять только после подготовки ящика Mail.ru и
+пароля для внешнего приложения. Не запускайте такой сценарий до готовности аккаунта и никогда
 не направляйте тестовый worker на очередь с реальными заявками.
 
 Для публичных заявок `PUBLIC_FORM_RATE_LIMIT` задаёт число попыток на форму
@@ -293,7 +284,7 @@ Docker для этого локального варианта не требуе
 
 `manage.py test` автоматически выбирает этот профиль; явный обычный профиль
 отклоняется. Тестовый профиль читает только `.env.test` и переменные
-`FISHSITE_TEST_*`; обычный `.env`, `DJANGO_DB_*` и Gmail credentials не подхватывает.
+`FISHSITE_TEST_*`; обычный `.env`, `DJANGO_DB_*` и SMTP credentials не подхватывает.
 Отсутствующие обязательные настройки останавливают запуск.
 Django создаёт `test_fishsite`, применяет миграции и удаляет БД после прогона.
 Для ускорения можно добавить `--keepdb`: база сохраняется, но тестовые данные
@@ -322,8 +313,8 @@ runner) и `test_fishsite`. Django проверяет адрес, порт, ро
 сокетам и shared memory; ограниченный sandbox может потребовать разрешение.
 Подробные границы, воспроизводимость и результаты — в
 [инструкции тестового окружения](docs/test-environment.md).
-Ручная отправка настоящего Gmail-письма остаётся отдельной операцией из
-[практической инструкции](docs/gmail-smtp-practical-test.md), не частью автотестов.
+Ручная отправка настоящего письма остаётся отдельной операцией из
+[практической инструкции](docs/mailru-smtp-practical-test.md), не частью автотестов.
 
 Модели и миграции описаны в [`docs/data-layer.md`](docs/data-layer.md),
 контракт шаблонов — в [`docs/frontend-contract.md`](docs/frontend-contract.md).

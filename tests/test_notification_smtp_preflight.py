@@ -1,4 +1,4 @@
-"""Local-only tests for the Gmail SMTP preflight command."""
+"""Local-only tests for the Mail.ru SMTP preflight command."""
 
 import logging
 import os
@@ -22,15 +22,15 @@ PROFILE = {
     "NOTIFICATION_TO_EMAIL": "seller@example.test",
     "NOTIFICATION_LEASE_SECONDS": 300,
     "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
-    "EMAIL_HOST": "smtp.gmail.com",
-    "EMAIL_PORT": 587,
-    "EMAIL_HOST_USER": "notifications@gmail.com",
+    "EMAIL_HOST": "smtp.mail.ru",
+    "EMAIL_PORT": 465,
+    "EMAIL_HOST_USER": "notifications@mail.ru",
     "EMAIL_HOST_PASSWORD": "synthetic-app-password-marker",
-    "EMAIL_USE_TLS": True,
-    "EMAIL_USE_SSL": False,
+    "EMAIL_USE_TLS": False,
+    "EMAIL_USE_SSL": True,
     "SMTP_ALLOW_INSECURE_LOCAL_AUTH": False,
     "EMAIL_TIMEOUT": 10,
-    "DEFAULT_FROM_EMAIL": "FishSite <notifications@gmail.com>",
+    "DEFAULT_FROM_EMAIL": "FishSite <notifications@mail.ru>",
 }
 
 
@@ -100,10 +100,10 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
         send_messages.assert_not_called()
         message_send.assert_not_called()
 
-    def test_g01_starttls_uses_verified_context_before_auth_and_closes(self):
+    def test_m01_implicit_tls_uses_verified_context_before_auth_and_closes(self):
         client, events = self.client_mock()
         with (
-            patch("django.core.mail.backends.smtp.smtplib.SMTP", return_value=client) as smtp_factory,
+            patch("django.core.mail.backends.smtp.smtplib.SMTP_SSL", return_value=client) as smtp_factory,
             patch(
                 "django.core.mail.backends.smtp.EmailBackend.send_messages",
                 side_effect=AssertionError("send_messages must never be called"),
@@ -117,13 +117,14 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
 
         smtp_factory.assert_called_once()
         args, kwargs = smtp_factory.call_args
-        self.assertEqual(args, ("smtp.gmail.com", 587))
+        self.assertEqual(args, ("smtp.mail.ru", 465))
         self.assertEqual(kwargs["timeout"], 10)
-        self.assertEqual([event[0] for event in events], ["starttls", "login", "quit"])
-        tls_context = client.starttls.call_args.kwargs["context"]
+        self.assertEqual([event[0] for event in events], ["login", "quit"])
+        tls_context = kwargs["context"]
         self.assertIs(tls_context.verify_mode, ssl.CERT_REQUIRED)
         self.assertIs(tls_context.check_hostname, True)
-        client.login.assert_called_once_with("notifications@gmail.com", "synthetic-app-password-marker")
+        client.login.assert_called_once_with("notifications@mail.ru", "synthetic-app-password-marker")
+        client.starttls.assert_not_called()
         client.quit.assert_called_once_with()
         self.assertEqual(stderr, "")
         self.assertIn("no email was sent", stdout)
@@ -154,14 +155,14 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
 
         smtp_ssl_factory.assert_called_once()
         args, kwargs = smtp_ssl_factory.call_args
-        self.assertEqual(args, ("smtp.gmail.com", 465))
+        self.assertEqual(args, ("smtp.mail.ru", 465))
         self.assertEqual(kwargs["timeout"], 10)
         tls_context = kwargs["context"]
         self.assertIs(tls_context.verify_mode, ssl.CERT_REQUIRED)
         self.assertIs(tls_context.check_hostname, True)
         self.assertEqual([event[0] for event in events], ["login", "quit"])
         client.starttls.assert_not_called()
-        client.login.assert_called_once_with("notifications@gmail.com", "synthetic-app-password-marker")
+        client.login.assert_called_once_with("notifications@mail.ru", "synthetic-app-password-marker")
         client.quit.assert_called_once_with()
         smtp_factory.assert_not_called()
         self.assertEqual(stderr, "")
@@ -170,24 +171,24 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
 
     def test_g03_invalid_profiles_fail_before_creating_a_connection(self):
         invalid_profiles = (
-            ("custom notification backend", {"NOTIFICATION_BACKEND": "untrusted.backend.Class"}, "gmail_smtp_backend_not_selected"),
-            ("custom Django mail backend", {"EMAIL_BACKEND": "untrusted.mail.Backend"}, "gmail_smtp_configuration_invalid"),
-            ("wrong Gmail host", {"EMAIL_HOST": "smtp.attacker.example"}, "gmail_smtp_profile_invalid"),
-            ("STARTTLS on SSL port", {"EMAIL_PORT": 465}, "gmail_smtp_profile_invalid"),
-            ("SSL on STARTTLS port", {"EMAIL_PORT": 587, "EMAIL_USE_TLS": False, "EMAIL_USE_SSL": True}, "gmail_smtp_profile_invalid"),
-            ("unsupported TLS port", {"EMAIL_PORT": 2525}, "gmail_smtp_profile_invalid"),
-            ("TLS and SSL both enabled", {"EMAIL_USE_SSL": True}, "gmail_smtp_configuration_invalid"),
-            ("neither TLS nor SSL with auth", {"EMAIL_USE_TLS": False}, "gmail_smtp_configuration_invalid"),
-            ("neither TLS nor SSL", {"EMAIL_USE_TLS": False, "EMAIL_HOST_USER": "", "EMAIL_HOST_PASSWORD": ""}, "gmail_smtp_profile_invalid"),
-            ("no credentials", {"EMAIL_HOST_USER": "", "EMAIL_HOST_PASSWORD": ""}, "gmail_smtp_profile_invalid"),
-            ("username without password", {"EMAIL_HOST_PASSWORD": ""}, "gmail_smtp_configuration_invalid"),
-            ("password without username", {"EMAIL_HOST_USER": "", "EMAIL_HOST_PASSWORD": "password-only-marker"}, "gmail_smtp_configuration_invalid"),
-            ("invalid username", {"EMAIL_HOST_USER": "not an email"}, "gmail_smtp_profile_invalid"),
-            ("display name in username", {"EMAIL_HOST_USER": "FishSite <notifications@gmail.com>"}, "gmail_smtp_profile_invalid"),
-            ("newline in username", {"EMAIL_HOST_USER": "notifications@gmail.com\r\nBcc: attacker@example.test"}, "gmail_smtp_profile_invalid"),
-            ("sender does not match login", {"DEFAULT_FROM_EMAIL": "Other <someone@gmail.com>"}, "gmail_smtp_profile_invalid"),
-            ("insecure auth override enabled", {"SMTP_ALLOW_INSECURE_LOCAL_AUTH": True}, "gmail_smtp_profile_invalid"),
-            ("invalid email port", {"EMAIL_PORT": "smtp-port-secret-marker"}, "gmail_smtp_configuration_invalid"),
+            ("custom notification backend", {"NOTIFICATION_BACKEND": "untrusted.backend.Class"}, "mailru_smtp_backend_not_selected"),
+            ("custom Django mail backend", {"EMAIL_BACKEND": "untrusted.mail.Backend"}, "mailru_smtp_configuration_invalid"),
+            ("wrong SMTP host", {"EMAIL_HOST": "smtp.attacker.example"}, "mailru_smtp_profile_invalid"),
+            ("STARTTLS on SSL port", {"EMAIL_USE_TLS": True, "EMAIL_USE_SSL": False}, "mailru_smtp_profile_invalid"),
+            ("SSL on STARTTLS port", {"EMAIL_PORT": 587}, "mailru_smtp_profile_invalid"),
+            ("unsupported TLS port", {"EMAIL_PORT": 2525}, "mailru_smtp_profile_invalid"),
+            ("TLS and SSL both enabled", {"EMAIL_USE_TLS": True}, "mailru_smtp_configuration_invalid"),
+            ("neither TLS nor SSL with auth", {"EMAIL_USE_SSL": False}, "mailru_smtp_configuration_invalid"),
+            ("neither TLS nor SSL", {"EMAIL_USE_SSL": False, "EMAIL_HOST_USER": "", "EMAIL_HOST_PASSWORD": ""}, "mailru_smtp_profile_invalid"),
+            ("no credentials", {"EMAIL_HOST_USER": "", "EMAIL_HOST_PASSWORD": ""}, "mailru_smtp_profile_invalid"),
+            ("username without password", {"EMAIL_HOST_PASSWORD": ""}, "mailru_smtp_configuration_invalid"),
+            ("password without username", {"EMAIL_HOST_USER": "", "EMAIL_HOST_PASSWORD": "password-only-marker"}, "mailru_smtp_configuration_invalid"),
+            ("invalid username", {"EMAIL_HOST_USER": "not an email"}, "mailru_smtp_profile_invalid"),
+            ("display name in username", {"EMAIL_HOST_USER": "FishSite <notifications@mail.ru>"}, "mailru_smtp_profile_invalid"),
+            ("newline in username", {"EMAIL_HOST_USER": "notifications@mail.ru\r\nBcc: attacker@example.test"}, "mailru_smtp_profile_invalid"),
+            ("sender does not match login", {"DEFAULT_FROM_EMAIL": "Other <someone@mail.ru>"}, "mailru_smtp_profile_invalid"),
+            ("insecure auth override enabled", {"SMTP_ALLOW_INSECURE_LOCAL_AUTH": True}, "mailru_smtp_profile_invalid"),
+            ("invalid email port", {"EMAIL_PORT": "smtp-port-secret-marker"}, "mailru_smtp_configuration_invalid"),
         )
         with patch(
             "integrations.management.commands.check_notification_smtp.get_connection"
@@ -213,17 +214,17 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
             with override_settings(**(PROFILE | {"NOTIFICATION_BACKEND": "untrusted.backend.Class"})):
                 with self.assertRaises(CommandError) as raised:
                     call_command("check_notification_smtp", stdout=stdout)
-            self.assertIn("gmail_smtp_backend_not_selected", str(raised.exception))
+            self.assertIn("mailru_smtp_backend_not_selected", str(raised.exception))
             selected_backend.assert_not_called()
             get_connection.assert_not_called()
 
-    def test_g03_accepts_a_display_name_and_case_insensitive_matching_gmail_address(self):
+    def test_m03_accepts_a_display_name_and_case_insensitive_matching_mailru_address(self):
         valid_case_variant = {
-            "EMAIL_HOST_USER": "Notifications.User@GMAIL.COM",
-            "DEFAULT_FROM_EMAIL": "FishSite Notifications <notifications.user@gmail.com>",
+            "EMAIL_HOST_USER": "Notifications.User@MAIL.RU",
+            "DEFAULT_FROM_EMAIL": "FishSite Notifications <notifications.user@mail.ru>",
         }
         client, _ = self.client_mock()
-        with patch("django.core.mail.backends.smtp.smtplib.SMTP", return_value=client) as smtp_factory:
+        with patch("django.core.mail.backends.smtp.smtplib.SMTP_SSL", return_value=client) as smtp_factory:
             stdout, _ = self.run_command(valid_case_variant)
         smtp_factory.assert_called_once()
         self.assertIn("no email was sent", stdout)
@@ -237,7 +238,7 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
         with (
             patch.object(BaseCommand, "check", side_effect=AssertionError("system checks ran")) as check,
             patch.object(BaseCommand, "check_migrations", side_effect=AssertionError("migration checks ran")) as migrations,
-            patch("django.core.mail.backends.smtp.smtplib.SMTP", return_value=client),
+            patch("django.core.mail.backends.smtp.smtplib.SMTP_SSL", return_value=client),
             patch("django.core.mail.backends.smtp.EmailBackend.send_messages", side_effect=AssertionError("send attempted")) as send_messages,
             patch("django.core.mail.message.EmailMessage.send", side_effect=AssertionError("send attempted")) as message_send,
         ):
@@ -250,38 +251,35 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
         for method in ("sendmail", "mail", "rcpt", "data"):
             getattr(client, method).assert_not_called()
 
-    def test_g05_starttls_and_certificate_failures_never_authenticate_or_fallback(self):
+    def test_m05_tls_handshake_and_certificate_failures_never_authenticate_or_fallback(self):
         failures = (
-            ("STARTTLS rejection", RuntimeError("STARTTLS raw failure secret-marker")),
+            ("TLS handshake", RuntimeError("TLS raw failure secret-marker")),
             ("certificate verification", ssl.SSLCertVerificationError(1, "certificate raw failure secret-marker")),
         )
         for label, failure in failures:
             with self.subTest(failure=label):
                 client, _ = self.client_mock()
-                client.starttls.side_effect = failure
                 with (
-                    patch("django.core.mail.backends.smtp.smtplib.SMTP", return_value=client) as smtp_factory,
+                    patch("django.core.mail.backends.smtp.smtplib.SMTP_SSL", side_effect=failure) as smtp_factory,
                     patch("django.core.mail.backends.smtp.EmailBackend.send_messages", side_effect=AssertionError("send attempted")) as send_messages,
                     patch("django.core.mail.message.EmailMessage.send", side_effect=AssertionError("send attempted")) as message_send,
                 ):
                     rendered = self.assert_safe_command_error(
                         {},
-                        "gmail_smtp_connection_failed",
+                        "mailru_smtp_connection_failed",
                         "secret-marker",
-                        "notifications@gmail.com",
+                        "notifications@mail.ru",
                         "synthetic-app-password-marker",
                         "seller@example.test",
                     )
 
                 smtp_factory.assert_called_once()
-                client.starttls.assert_called_once()
                 client.login.assert_not_called()
-                client.quit.assert_called_once_with()
                 self.assert_no_message_send(send_messages, message_send)
                 self.assertNotIn("no email was sent", rendered)
 
     def test_g06_network_and_unexpected_errors_never_escape_safe_diagnostics(self):
-        secret_user = "preflight-user-secret-marker@gmail.com"
+        secret_user = "preflight-user-secret-marker@mail.ru"
         secret_password = "preflight-password-secret-marker"
         secret_recipient = "preflight-recipient-secret-marker@example.test"
         server_text = "raw-server-reply-secret-marker"
@@ -300,7 +298,7 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
                 "login",
                 smtplib.SMTPAuthenticationError(535, f"authentication {server_text}".encode()),
             ),
-            ("socket timeout", "starttls", socket.timeout(f"timeout {server_text}")),
+            ("socket timeout", "ssl_constructor", socket.timeout(f"timeout {server_text}")),
             ("unexpected open failure", "open", RuntimeError(f"unexpected {server_text}")),
         )
         for label, operation, exception in cases:
@@ -308,10 +306,9 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
                 client, _ = self.client_mock()
                 if operation == "login":
                     client.login.side_effect = exception
-                    factory_patch = patch("django.core.mail.backends.smtp.smtplib.SMTP", return_value=client)
-                elif operation == "starttls":
-                    client.starttls.side_effect = exception
-                    factory_patch = patch("django.core.mail.backends.smtp.smtplib.SMTP", return_value=client)
+                    factory_patch = patch("django.core.mail.backends.smtp.smtplib.SMTP_SSL", return_value=client)
+                elif operation == "ssl_constructor":
+                    factory_patch = patch("django.core.mail.backends.smtp.smtplib.SMTP_SSL", side_effect=exception)
                 elif operation == "open":
                     factory_patch = patch("integrations.management.commands.check_notification_smtp.get_connection")
                 elif operation == "connection_factory":
@@ -320,7 +317,7 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
                         side_effect=exception,
                     )
                 else:
-                    factory_patch = patch("django.core.mail.backends.smtp.smtplib.SMTP", side_effect=exception)
+                    factory_patch = patch("django.core.mail.backends.smtp.smtplib.SMTP_SSL", side_effect=exception)
 
                 with factory_patch as factory, patch(
                     "django.core.mail.backends.smtp.EmailBackend.send_messages", side_effect=AssertionError("send attempted")
@@ -331,7 +328,7 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
                         factory.return_value.open.side_effect = exception
                     rendered = self.assert_safe_command_error(
                         common,
-                        "gmail_smtp_connection_failed",
+                        "mailru_smtp_connection_failed",
                         secret_user,
                         secret_password,
                         secret_recipient,
@@ -340,27 +337,25 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
 
                 self.assertNotIn("no email was sent", rendered)
                 self.assert_no_message_send(send_messages, message_send)
-                if operation in {"smtp_constructor", "connection_factory", "login", "starttls"}:
+                if operation in {"smtp_constructor", "connection_factory", "login", "ssl_constructor"}:
                     factory.assert_called_once()
-                if operation in {"login", "starttls"}:
-                    client.starttls.assert_called_once()
+                if operation in {"login", "ssl_constructor"}:
                     if operation == "login":
                         client.login.assert_called_once()
                     else:
                         client.login.assert_not_called()
-                    client.quit.assert_called_once()
                 elif operation == "open":
                     factory.return_value.close.assert_called_once()
 
     def test_g07_cleanup_failure_does_not_report_success_or_hide_primary_failure(self):
         cases = (
-            ("close after success", True, None, "gmail_smtp_cleanup_failed"),
-            ("close after generic open failure", None, RuntimeError("primary raw secret-marker"), "gmail_smtp_connection_failed"),
+            ("close after success", True, None, "mailru_smtp_cleanup_failed"),
+            ("close after generic open failure", None, RuntimeError("primary raw secret-marker"), "mailru_smtp_connection_failed"),
             (
                 "close after SMTP AUTH 535 failure",
                 None,
                 smtplib.SMTPAuthenticationError(535, b"primary raw secret-marker"),
-                "gmail_smtp_connection_failed",
+                "mailru_smtp_connection_failed",
             ),
         )
         for label, open_result, primary_error, expected_code in cases:
@@ -394,7 +389,7 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
                 ):
                     rendered = self.assert_safe_command_error(
                         {},
-                        "gmail_smtp_connection_not_established",
+                        "mailru_smtp_connection_not_established",
                     )
                 connection.close.assert_called_once_with()
                 self.assertNotIn("no email was sent", rendered)
@@ -411,7 +406,7 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
             ("NOTIFICATION_LEASE_SECONDS", "integer"),
         )
         safe_defaults = {
-            "SMTP_PORT": "587",
+            "SMTP_PORT": "465",
             "SMTP_TIMEOUT_SECONDS": "10",
             "NOTIFICATION_MAX_ATTEMPTS": "5",
             "NOTIFICATION_RETRY_BASE_SECONDS": "30",
