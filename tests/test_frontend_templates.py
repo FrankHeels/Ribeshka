@@ -1,3 +1,8 @@
+# Запуск только этого файла: `.venv/bin/python manage.py test tests.test_frontend_templates --settings=fishsite.settings_test --noinput`.
+# Профиль `fishsite.settings_test` использует изолированную тестовую БД PostgreSQL
+# (`127.0.0.1:15432`, база `test_fishsite`); этот класс `SimpleTestCase` сам БД не читает.
+# Сценарии собирают фиктивный GET-запрос через `RequestFactory`, задают синтетические
+# данные товара и рендерят Django-шаблоны через `render_to_string`; проверяется HTML.
 import re
 from decimal import Decimal
 
@@ -24,6 +29,11 @@ class FrontendTemplateTests(SimpleTestCase):
     def render(self, template, context):
         return render_to_string(template, context, request=self.request)
 
+    # Проверяет форму товара с целыми килограммами и кнопками шагов, затем корзину
+    # с допустимым весом 2 кг и ошибочным устаревшим весом 1,5 кг: значение ошибки
+    # сохраняется, сумма строки и общая сумма отмечаются недоступными, а live-status
+    # остаётся доступен; проверяются связанные ARIA-атрибуты и отсутствие статуса
+    # «Сумма пересчитана.».
     def test_weight_controls_use_whole_kilograms_and_preserve_invalid_legacy_value(self):
         detail = self.render(
             "catalog/product.html",
@@ -82,6 +92,11 @@ class FrontendTemplateTests(SimpleTestCase):
         self.assertNotIn('data-cart-status', cart)
         self.assertNotIn("Сумма пересчитана.", cart)
 
+    # Для сводки ошибок проверяет два варианта `subTest`: корзина с ошибками выбора
+    # получения, согласия и подтверждения изменившейся корзины, затем оптовая форма
+    # с ошибками телефона, почты и согласия. В обоих случаях каждая ссылка сводки
+    # ведёт на существующий id. Отдельный рендер оптовой формы без ошибок подтверждает,
+    # что поля потребности и подпись «Опишите потребность» не выводятся.
     def test_error_summary_targets_existing_controls(self):
         contexts = (
             (
@@ -133,6 +148,9 @@ class FrontendTemplateTests(SimpleTestCase):
         self.assertNotIn('name="need"', wholesale)
         self.assertNotIn("Опишите потребность", wholesale)
 
+    # Рендерит главную с одним рекомендуемым товаром и подтверждённым описанием:
+    # заголовок сообщает о рекомендуемых товарах, пустое состояние каталога скрыто,
+    # а текст о компании присутствует.
     def test_populated_home_has_populated_heading(self):
         html = self.render(
             "home.html",
@@ -142,6 +160,9 @@ class FrontendTemplateTests(SimpleTestCase):
         self.assertNotIn("В каталоге пока пусто", html)
         self.assertIn("Подтверждённый текст", html)
 
+    # Рендерит страницу категории с товаром и переданным устаревшим контекстом
+    # подкатегории: название товара показывается, но название подкатегории и секция
+    # «Подкатегории» в HTML отсутствуют.
     def test_category_page_does_not_render_legacy_subcategory_context(self):
         html = self.render(
             "catalog/category.html",

@@ -1,5 +1,14 @@
 """Real commits, rollback, concurrent POSTs and LISTEN/NOTIFY on the isolated DB."""
 
+# Запуск этого файла:
+# .venv/bin/python manage.py test tests.test_request_committed_scenarios --settings=fishsite.settings_test --noinput
+# Используется изолированная тестовая PostgreSQL-БД test_fishsite на локальном
+# тестовом кластере, а не основная база. TransactionTestCase позволяет проверить
+# настоящий commit/rollback и несколько подключений; Django создаёт и удаляет
+# тестовую БД. Запросы отправляет Django test Client. Для проверки pg_notify
+# открывается отдельное psycopg-подключение с LISTEN; два параллельных POST
+# отправляются через ThreadPoolExecutor, каждый с собственным DB-подключением.
+
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import uuid
@@ -129,6 +138,9 @@ class CommittedRequestScenarios(TransactionTestCase):
     def assert_no_notification(self, listener):
         self.assertEqual(self.receive_notifications(listener, timeout=0.15, stop_after=1), [])
 
+    # Успешная розничная отправка с самовывозом создаёт один заказ, одну позицию
+    # и одну outbox-запись, сохраняет подписанную редакцию согласия и после commit
+    # посылает ровно один сигнал; корзина очищается, страница успеха доступна.
     def test_retail_commit_persists_one_outbox_and_one_post_commit_notify(self):
         self.add_cart_product(self.client, weight="2")
         submission = self.retail_submission(self.client)
@@ -148,6 +160,9 @@ class CommittedRequestScenarios(TransactionTestCase):
         self.assertEqual(self.client.session.get(CART_SESSION_KEY, {}), {})
         self.assertEqual(self.get(self.client, response.url).status_code, 200)
 
+    # Успешная оптовая отправка создаёт одну заявку с подписанной редакцией,
+    # компанией и email, пустым need и одной outbox-записью; после commit приходит
+    # один сигнал. Страница успеха показывает номер, но скрывает контакты.
     def test_wholesale_commit_persists_one_outbox_and_one_post_commit_notify(self):
         submission = self.wholesale_submission(self.client)
         data = self.wholesale_data(submission)
@@ -171,6 +186,8 @@ class CommittedRequestScenarios(TransactionTestCase):
         self.assertNotContains(success, f"Committed Wholesale Contact {self.marker}")
         self.assertNotContains(success, "+7 (921) 555-56-78")
 
+    # Искусственный внешний rollback после успешного POST удаляет заказ и outbox,
+    # сохраняет исходную корзину и не доставляет LISTEN/NOTIFY-сигнал.
     def test_outer_rollback_removes_retail_rows_preserves_cart_and_emits_no_notify(self):
         self.add_cart_product(self.client, weight="3")
         submission = self.retail_submission(self.client)
@@ -195,6 +212,9 @@ class CommittedRequestScenarios(TransactionTestCase):
             self.assertEqual(self.client.session.get(CART_SESSION_KEY), {str(self.product.pk): "3"})
             self.assert_no_notification(listener)
 
+    # Ошибка БД после постановки outbox и pg_notify возвращает 503; транзакция
+    # откатывает заказ и outbox, оставляет корзину, не раскрывает текст исключения
+    # и не доставляет сигнал слушателю.
     def test_failure_after_pg_notify_rolls_back_order_outbox_and_keeps_cart(self):
         self.add_cart_product(self.client, weight="4")
         submission = self.retail_submission(self.client)
@@ -242,6 +262,8 @@ class CommittedRequestScenarios(TransactionTestCase):
         second.cookies[settings.SESSION_COOKIE_NAME] = session_cookie
         return first, second
 
+    # Два одновременных розничных POST одного ключа и одной сессии оба получают
+    # redirect на один URL, но сохраняются ровно один заказ и одна outbox-запись.
     @override_settings(PUBLIC_FORM_RATE_LIMIT=50)
     def test_concurrent_duplicate_retail_posts_create_exactly_one_order_and_outbox(self):
         self.add_cart_product(self.client, weight="2")
@@ -257,6 +279,8 @@ class CommittedRequestScenarios(TransactionTestCase):
         self.assertEqual(Order.objects.filter(submission_key=submission["submission_key"]).count(), 1)
         self.assertEqual(NotificationOutbox.objects.filter(order=order).count(), 1)
 
+    # Два одновременных оптовых POST одного ключа и одной сессии оба получают
+    # redirect на один URL, но сохраняются ровно одна заявка и одна outbox-запись.
     @override_settings(PUBLIC_FORM_RATE_LIMIT=50)
     def test_concurrent_duplicate_wholesale_posts_create_exactly_one_inquiry_and_outbox(self):
         submission = self.wholesale_submission(self.client)

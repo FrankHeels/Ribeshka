@@ -43,7 +43,10 @@ SECRET_KEY = _environment.get("DJANGO_SECRET_KEY", "development-only-change-befo
 DEBUG = _environment.get("DJANGO_DEBUG", "true").lower() == "true"
 ALLOWED_HOSTS = [
     host.strip()
-    for host in _environment.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
+    for host in _environment.get(
+        "DJANGO_ALLOWED_HOSTS",
+        "localhost,127.0.0.1,[::1],",
+    ).split(",")
     if host.strip()
 ]
 CSRF_TRUSTED_ORIGINS = [
@@ -154,12 +157,17 @@ DEFAULT_FROM_EMAIL = _environment.get("NOTIFICATION_FROM_EMAIL", "")
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-    "formatters": {"notification_json": {"format": "%(message)s"}},
+    "formatters": {
+        "notification_console": {
+            "()": "integrations.notifications.events.NotificationConsoleFormatter",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
     "handlers": {
         "notification_console": {
             "class": "logging.StreamHandler",
             "level": "INFO",
-            "formatter": "notification_json",
+            "formatter": "notification_console",
         },
     },
     "loggers": {

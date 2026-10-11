@@ -1,5 +1,15 @@
 """Public request workflows isolated by Django TestCase transactions."""
 
+# Эти сценарии запускаются командой:
+# `.venv/bin/python manage.py test tests.test_request_workflows --settings=fishsite.settings_test --noinput`.
+# Django TestCase создаёт тестовую БД `test_fishsite` в отдельном изолированном
+# PostgreSQL-кластере и оборачивает тестовые изменения в откатываемые транзакции;
+# Django Client выполняет GET/POST к публичным URL и проверяет HTTP-ответы,
+# сессии и контекст шаблонов. Тесты создают собственные записи каталога, заявок,
+# редакций согласия и outbox. Формы отправляют связанные с сессией подписанные
+# токены; фиктивные источники данных и OperationalError подставляются через mock.
+# SMTP и внешние сервисы сценарии не вызывают.
+
 from decimal import Decimal
 import uuid
 from unittest.mock import patch
@@ -90,6 +100,10 @@ class PrimaryRequestWorkflowTests(TestCase):
     def revision_id(submission):
         return submission["consent_url"].split("/revisions/", 1)[1].strip("/")
 
+    # Два добавления без JavaScript складываются в 5 кг; POST с подменёнными
+    # суммами создаёт доставку по серверной цене и сохраняет снимок товара,
+    # согласие, одну outbox-запись и очищает корзину. Страница успеха показывает
+    # номер, скрывает личные данные и имеет noindex/no-store.
     def test_accumulated_cart_no_js_delivery_post_saves_decimal_snapshots_and_private_success(self):
         self.add(self.client, weight="2")
         self.add(self.client, weight="3")
@@ -155,6 +169,8 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertEqual(success["X-Robots-Tag"], "noindex, nofollow")
         self.assertIn("no-store", success["Cache-Control"])
 
+    # GET checkout без отдельной формы перенаправляет к форме корзины; отправка
+    # самовывоза без адреса успешно создаёт заказ с пустым адресом.
     def test_pickup_needs_no_address_and_checkout_get_returns_to_cart_form(self):
         self.add(self.client)
         checkout = self.client.get(reverse("orders:checkout"))
@@ -177,6 +193,9 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertEqual(order.fulfillment_method, Order.FulfillmentMethod.PICKUP)
         self.assertEqual(order.delivery_address, "")
 
+    # Оптовая форма не содержит поля потребности; минимальные контакт и согласие
+    # создают Inquiry с пустыми необязательными полями и одной outbox-записью.
+    # Страница успеха показывает номер, но не контактные данные.
     def test_wholesale_minimal_contact_and_consent_are_saved_without_need(self):
         page = self.client.get(reverse("inquiries:wholesale"))
         self.assertEqual(page.status_code, 200)
@@ -207,6 +226,10 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertNotContains(success, "Primary Wholesale Contact")
         self.assertNotContains(success, "+7 (921) 555-03-04")
 
+    # Розничный POST после смены исходного текста согласия сохраняет редакцию,
+    # связанную со старым подписанным токеном; вручную присланный ID её не меняет.
+    # Архивная страница показывает старый текст, а новая форма получает новую
+    # редакцию.
     def test_retail_post_keeps_the_signed_revision_when_the_source_changes(self):
         self.add(self.client)
         old_text = "# Согласие\n\nАрхивный текст редакции до изменения.\n"
@@ -242,6 +265,9 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertNotContains(archived_page, "Новый текст после изменения Markdown.")
         self.assertNotEqual(self.revision_id(new_page.context["submission"]), old_revision_id)
 
+    # Два подписанных оптовых токена проверяют отсутствие ID редакции и
+    # неизвестный ID: каждый POST получает 400, не создаёт Inquiry и возвращает
+    # новую форму с новым ключом и незаполненным согласием.
     def test_missing_or_unknown_revision_in_signed_token_requires_new_consent(self):
         page = self.client.get(reverse("inquiries:wholesale"))
         submission = page.context["submission"]
@@ -278,6 +304,9 @@ class PrimaryRequestWorkflowTests(TestCase):
         consent_control = unknown_response.content.decode().split('id="id_consent"', 1)[1].split(">", 1)[0]
         self.assertNotIn("checked", consent_control)
 
+    # Пять subTest проверяют по отдельности пустые имя, телефон, согласие,
+    # адрес доставки и некорректный email: каждый ответ 400, без заказа/outbox,
+    # при этом позиция остаётся в сессионной корзине.
     def test_required_retail_contacts_consent_and_delivery_address_are_validated(self):
         self.add(self.client)
         invalid_overrides = (
@@ -301,6 +330,8 @@ class PrimaryRequestWorkflowTests(TestCase):
                     {str(self.product.pk): "1"},
                 )
 
+    # Четыре subTest проверяют пустые контактное лицо, телефон и согласие, а
+    # также некорректный email: каждый ответ 400 и Inquiry не создаётся.
     def test_required_wholesale_contacts_consent_and_email_are_validated(self):
         invalid_overrides = (
             {"contact_name": ""},
@@ -320,6 +351,8 @@ class PrimaryRequestWorkflowTests(TestCase):
                     Inquiry.objects.filter(submission_key=submission["submission_key"]).exists()
                 )
 
+    # Сессионная корзина со старым дробным весом 1.5 кг отклоняется с 400 без
+    # округления и без создания заказа/outbox; исходное значение сохраняется.
     def test_fractional_legacy_cart_cannot_be_submitted_or_rounded(self):
         session = self.client.session
         session[CART_SESSION_KEY] = {str(self.product.pk): "1.5"}
@@ -335,6 +368,8 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assert_no_retail_request(submission)
         self.assertEqual(self.client.session[CART_SESSION_KEY], {str(self.product.pk): "1.5"})
 
+    # Проверяются три отказа: пустая корзина, изменённая подпись токена и
+    # токен одной сессии, отправленный из другой; все ответы 400 и заказ не создан.
     def test_empty_tampered_and_cross_session_retail_tokens_do_not_create_orders(self):
         empty_submission = self.submission(self.client)
         response = self.client.post(
@@ -363,6 +398,10 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assert_no_retail_request(original)
 
+    # Устаревший снимок после добавления товара и смены цены получает 409 и
+    # новый ключ; первая отправка со свежим токеном без подтверждения получает
+    # 400, с явным подтверждением создаёт заказ по текущим составу и ценам,
+    # сохраняя редакцию согласия исходной формы.
     def test_catalog_price_or_composition_changes_require_new_explicit_confirmation(self):
         second = Product.objects.create(
             name=f"Second request fish {self.marker}",
@@ -422,6 +461,8 @@ class PrimaryRequestWorkflowTests(TestCase):
             ],
         )
 
+    # Если товар корзины снят с публикации, отправка устаревшего снимка даёт
+    # 409, не создаёт заказ, не показывает товар в форме и удаляет его из корзины.
     def test_unpublished_cart_product_is_removed_and_never_submitted(self):
         self.add(self.client)
         stale = self.submission(self.client)
@@ -437,6 +478,8 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertNotContains(response, self.product.name, status_code=409)
         self.assertEqual(self.client.session.get(CART_SESSION_KEY, {}), {})
 
+    # Случайный неизвестный UUID-токен страницы успеха для заказа и оптовой
+    # заявки не раскрывает запись: оба URL отвечают 404.
     def test_success_uuid_is_unguessable_and_unknown_tokens_return_404(self):
         unknown = uuid.uuid4()
         self.assertEqual(
@@ -448,6 +491,9 @@ class PrimaryRequestWorkflowTests(TestCase):
             404,
         )
 
+    # Honeypot в первом POST отклоняется без заявки; корректный POST принимается,
+    # повтор того же ключа возвращает прежний success даже после очистки корзины
+    # и не дублирует outbox. Новый ключ после двух попыток получает 429.
     @override_settings(PUBLIC_FORM_RATE_LIMIT=2)
     def test_honeypot_is_rejected_and_same_key_retry_bypasses_rate_limit_after_success(self):
         self.client.defaults["REMOTE_ADDR"] = f"primary-retry-{uuid.uuid4()}"
@@ -483,6 +529,8 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertEqual(limited.status_code, 429)
         self.assert_no_retail_request(next_submission)
 
+    # Для розничной и оптовой форм Django Client с CSRF-проверкой отклоняет POST
+    # без токена с 403 и принимает повтор с cookie-токеном с перенаправлением.
     def test_csrf_is_required_for_retail_and_wholesale_submissions(self):
         retail = Client(enforce_csrf_checks=True)
         session = retail.session
@@ -514,6 +562,9 @@ class PrimaryRequestWorkflowTests(TestCase):
         )
         self.assertEqual(allowed.status_code, 302)
 
+    # Ошибки БД при сохранении заявки и чтении корзины/навигации проверяются
+    # отдельно для розницы и опта: обработчик не выбрасывает OperationalError,
+    # возвращает 503 без текста ошибки и не создаёт заявку.
     def test_public_database_error_fallback_does_not_raise_or_render_raw_error(self):
         self.add(self.client)
         retail_submission = self.submission(self.client)
@@ -562,6 +613,8 @@ class PrimaryRequestWorkflowTests(TestCase):
             Inquiry.objects.filter(submission_key=wholesale_submission["submission_key"]).exists()
         )
 
+    # Ошибка БД при чтении nonce сессии проверяется для отправки розничной и
+    # оптовой форм: оба запроса безопасно отвечают 503 без деталей исключения.
     def test_database_error_while_reading_session_nonce_returns_safe_503(self):
         self.add(self.client)
         retail_submission = self.submission(self.client)

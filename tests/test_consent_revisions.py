@@ -1,5 +1,16 @@
 """Consent archive invariants and migration behavior on the isolated database."""
 
+# Запуск этого файла:
+# .venv/bin/python manage.py test tests.test_consent_revisions --settings=fishsite.settings_test --noinput
+# Django использует профиль fishsite.settings_test и отдельную тестовую БД
+# test_fishsite на изолированном PostgreSQL; runner проверяет настройки и БД,
+# создаёт базу для прогона и удаляет её после него. TestCase изолирует записи
+# транзакциями. TransactionTestCase с MigrationExecutor применяет старые и
+# новые состояния миграций на тестовой БД и возвращает актуальные миграции.
+# Проверки используют Django ORM и assertions, клиент Django Admin, хеширование
+# исходного Markdown и миграционные модели из project state; внешние сервисы
+# и основная база не используются.
+
 import hashlib
 
 from django.core.exceptions import ValidationError
@@ -20,6 +31,8 @@ from orders.models import Order
 
 
 class ConsentRevisionArchiveTests(TestCase):
+    # Сценарий: создать розничную заявку и оптовый запрос без ссылки на
+    # редакцию согласия. Ожидается ValidationError для обеих новых записей.
     def test_new_requests_require_a_revision_but_legacy_rows_can_remain_unknown(self):
         with self.assertRaises(ValidationError):
             Order.objects.create(
@@ -37,6 +50,10 @@ class ConsentRevisionArchiveTests(TestCase):
                 privacy_consent_at=timezone.now(),
             )
 
+    # Сценарий: получить текущий Markdown согласия и архивировать редакцию.
+    # Проверяются совпадение текста, SHA-256 и идентификатора, повторное
+    # получение той же строки, а также запрет изменения/удаления через save,
+    # QuerySet.update, bulk_update, экземпляр и QuerySet.delete.
     def test_current_source_is_archived_once_and_supported_orm_paths_are_immutable(self):
         source = read_legal_document_source("consent")
         revision = get_current_consent_revision()
@@ -58,6 +75,11 @@ class ConsentRevisionArchiveTests(TestCase):
         with self.assertRaises(ValidationError):
             ConsentRevision.objects.filter(pk=revision.pk).delete()
 
+    # Сценарий: связать архивную редакцию с розничной заявкой и оптовым
+    # запросом. Проверяются сохранённые ссылки, запрет удаления связанного
+    # архива, доступ суперадминистратора к заявке и архиву, ссылка на архив,
+    # отображение идентификатора, хеша и текста согласия, а также HTTP 403
+    # при попытке удалить редакцию через Django Admin.
     def test_request_references_protect_archive_and_staff_can_find_the_revision(self):
         revision = get_current_consent_revision()
         order = Order.objects.create(
@@ -140,6 +162,10 @@ class ConsentRevisionMigrationTests(TransactionTestCase):
         executor = MigrationExecutor(connection)
         executor.migrate(executor.loader.graph.leaf_nodes())
 
+    # Сценарий: создать в старом состоянии схемы розничную и оптовую записи
+    # с принятым согласием и временем, затем применить миграции архива и ссылок.
+    # Тест проверяет у обеих записей сохранённое согласие и непустую дату, но
+    # пустую ссылку на редакцию: миграция не должна выдумывать её задним числом.
     def test_existing_rows_keep_consent_but_have_no_invented_revision(self):
         Order = self.new_apps.get_model("orders", "Order")
         Inquiry = self.new_apps.get_model("inquiries", "Inquiry")

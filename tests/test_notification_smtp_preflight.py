@@ -1,5 +1,16 @@
 """Local-only tests for the Mail.ru SMTP preflight command."""
 
+# Запуск файла: `.venv/bin/python manage.py test tests.test_notification_smtp_preflight --settings=fishsite.settings_test --noinput`.
+# Тестовый профиль требует изолированный PostgreSQL из `docs/test-environment.md`
+# (кластер fishsite-tests на 127.0.0.1:15432 и БД test_fishsite); основная БД
+# и `.env` приложения не используются. Класс наследуется от SimpleTestCase и
+# запрещает обращения к БД. Настройки Mail.ru задаются синтетическим PROFILE
+# через override_settings, вызов management command идёт через call_command,
+# SMTP/Django отправка подменяются mock-объектами; реального письма нет.
+# Последний тест запускает subprocess для проверки ошибок парсинга настроек:
+# он использует обычный fishsite.settings с FISHSITE_SKIP_DOTENV=1 и
+# синтетическим окружением, не подключаясь к SMTP.
+
 import logging
 import os
 import smtplib
@@ -100,6 +111,9 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
         send_messages.assert_not_called()
         message_send.assert_not_called()
 
+    # Базовый Mail.ru SSL-профиль: TLS-контекст проверяет сертификат и hostname,
+    # AUTH идёт после создания SSL-соединения, соединение закрывается; отправка
+    # письма и SMTP-команды передачи данных не вызываются.
     def test_m01_implicit_tls_uses_verified_context_before_auth_and_closes(self):
         client, events = self.client_mock()
         with (
@@ -132,6 +146,9 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
         for method in ("sendmail", "mail", "rcpt", "data"):
             getattr(client, method).assert_not_called()
 
+    # Явный SSL-профиль на порту 465: создаётся только SMTP_SSL с проверенным
+    # TLS-контекстом, STARTTLS и обычный SMTP не используются; AUTH и close
+    # выполняются, письмо не отправляется.
     def test_g02_ssl_uses_verified_context_without_starttls(self):
         profile = {
             "EMAIL_PORT": 465,
@@ -169,6 +186,11 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
         self.assertIn("no email was sent", stdout)
         self.assert_no_message_send(send_messages, message_send)
 
+    # 18 вариантов некорректной конфигурации (backend, host/TLS/порт,
+    # credentials, адреса отправителя/логина, insecure override и тип порта)
+    # дают ожидаемый безопасный код ошибки до создания SMTP-соединения;
+    # секретный маркер не попадает в вывод. Отдельно чужой notification
+    # backend отклоняется до создания SMTP backend и вызова get_connection.
     def test_g03_invalid_profiles_fail_before_creating_a_connection(self):
         invalid_profiles = (
             ("custom notification backend", {"NOTIFICATION_BACKEND": "untrusted.backend.Class"}, "mailru_smtp_backend_not_selected"),
@@ -218,6 +240,9 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
             selected_backend.assert_not_called()
             get_connection.assert_not_called()
 
+    # Допустимый display name и совпадающие без учёта регистра адреса MAIL.RU
+    # принимаются: SMTP_SSL создаётся, команда сообщает об успешной проверке
+    # без отправки сообщения.
     def test_m03_accepts_a_display_name_and_case_insensitive_matching_mailru_address(self):
         valid_case_variant = {
             "EMAIL_HOST_USER": "Notifications.User@MAIL.RU",
@@ -229,6 +254,9 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
         smtp_factory.assert_called_once()
         self.assertIn("no email was sent", stdout)
 
+    # Команда отключает системные и migration checks; при успешном SMTP
+    # сообщает, что письмо не отправлялось, и не вызывает методы отправки
+    # сообщения или SMTP-команды mail/rcpt/data.
     def test_g04_command_skips_system_and_migration_checks_and_never_sends(self):
         from integrations.management.commands.check_notification_smtp import Command
 
@@ -251,6 +279,9 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
         for method in ("sendmail", "mail", "rcpt", "data"):
             getattr(client, method).assert_not_called()
 
+    # Два сбоя создания SSL-соединения (TLS handshake и проверка сертификата)
+    # дают безопасный connection_failed без секретных данных; AUTH, отправка
+    # сообщения и сообщение об успехе отсутствуют, повторного транспорта нет.
     def test_m05_tls_handshake_and_certificate_failures_never_authenticate_or_fallback(self):
         failures = (
             ("TLS handshake", RuntimeError("TLS raw failure secret-marker")),
@@ -278,6 +309,10 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
                 self.assert_no_message_send(send_messages, message_send)
                 self.assertNotIn("no email was sent", rendered)
 
+    # Пять мест сбоя (конструктор SMTP, фабрика соединения, SMTP AUTH 535,
+    # timeout SSL-сокета и open) дают connection_failed с безопасной
+    # диагностикой без пользователя, пароля, получателя и сырого ответа;
+    # где применимо, соединение закрывается, AUTH/отправки при сбое нет.
     def test_g06_network_and_unexpected_errors_never_escape_safe_diagnostics(self):
         secret_user = "preflight-user-secret-marker@mail.ru"
         secret_password = "preflight-password-secret-marker"
@@ -347,6 +382,10 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
                 elif operation == "open":
                     factory.return_value.close.assert_called_once()
 
+    # Ошибка close в трёх ситуациях: после успешного open выдаётся
+    # cleanup_failed; после общей ошибки open и SMTP AUTH 535 сохраняется
+    # connection_failed. В каждом случае close вызван, сырые ошибки скрыты,
+    # сообщение об успехе не выводится.
     def test_g07_cleanup_failure_does_not_report_success_or_hide_primary_failure(self):
         cases = (
             ("close after success", True, None, "mailru_smtp_cleanup_failed"),
@@ -378,6 +417,9 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
                 connection.close.assert_called_once_with()
                 self.assertNotIn("no email was sent", rendered)
 
+    # Два результата open (False и None) трактуются как неустановленное
+    # соединение: команда выдаёт connection_not_established, закрывает его
+    # и не сообщает об успехе.
     def test_g08_false_or_none_open_results_are_closed_and_rejected(self):
         for open_result in (False, None):
             with self.subTest(open_result=open_result):
@@ -394,6 +436,11 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
                 connection.close.assert_called_once_with()
                 self.assertNotIn("no email was sent", rendered)
 
+    # Subprocess проверяет семь числовых настроек (порт, timeout и параметры
+    # повтора/сканирования/lease): ошибочное значение завершает команду
+    # ненулевым кодом, stderr называет настройку и ожидаемый тип, но оба потока
+    # не раскрывают переданный сырой маркер. Окружение синтетическое, .env
+    # отключён; subprocess не выполняет SMTP-подключение.
     def test_settings_parse_errors_with_traceback_name_setting_but_hide_raw_values(self):
         root = Path(__file__).resolve().parents[1]
         numeric_settings = (

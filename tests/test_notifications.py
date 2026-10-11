@@ -1,5 +1,15 @@
 """Real PostgreSQL and loopback SMTP coverage for the notification worker."""
 
+# Запуск: `.venv/bin/python manage.py test tests.test_notifications --settings=fishsite.settings_test --noinput`.
+# Django создаёт отдельную временную БД `test_fishsite` в изолированном тестовом
+# кластере PostgreSQL (127.0.0.1:15432; профиль `settings_test`, роль `fishsite_tester`);
+# настройки обычной БД и SMTP в тестах не используются. `TransactionTestCase`
+# нужен для реальных commit/rollback, нескольких соединений, блокировок и
+# PostgreSQL `LISTEN/NOTIFY`. SMTP-проверки ходят только в локальный тестовый сервер
+# на loopback либо используют mock/patch; внешняя почта не вызывается. Отдельные
+# сценарии проверяют subprocess (настройки и worker management command), Django
+# `Client` и `call_command`; listener использует отдельное соединение Psycopg.
+
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from email import policy
@@ -284,6 +294,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         for value in values:
             self.assertNotIn(value, rendered)
 
+    # Проверяет retail-снимок после переименования, изменения цены и удаления товара,
+    # неизменяемость DTO и delivery key; затем проверяет поля wholesale-уведомления.
     def test_payload_is_an_immutable_saved_snapshot_after_catalog_edit_and_delete(self):
         order, item, outbox = self.retail_request()
         notification = build_notification(outbox.pk)
@@ -320,6 +332,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertEqual(wholesale.need, "Historical need retained")
         self.assertEqual(wholesale.delivery_key, f"wholesale:{inquiry.submission_key}")
 
+    # Локальный SMTP-сервер принимает retail дважды и wholesale один раз: проверяются число писем,
+    # повторяемый Message-ID при retry, отдельный ID для другого запроса, темы и тела.
     def test_smtp_delivers_retail_and_wholesale_and_reuses_message_id_for_retries(self):
         order, _, retail_outbox = self.retail_request(fulfillment=Order.FulfillmentMethod.PICKUP)
         inquiry, wholesale_outbox = self.wholesale_request(need="Historical wholesale need")
@@ -347,6 +361,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertIn("Historical wholesale need", wholesale_body)
         self.assertIn(f"Wholesale company {self.marker}", wholesale_body)
 
+    # Проверяет 450 как временный отказ, 550 и ошибку AUTH как постоянные; timeout
+    # после принятого DATA и разрыв после DATA дают временную ошибку, а retry сохраняет Message-ID.
     def test_smtp_maps_temporary_permanent_auth_timeout_and_accepted_but_unconfirmed(self):
         _, _, outbox = self.retail_request()
         notification = build_notification(outbox.pk)
@@ -389,6 +405,8 @@ class NotificationIntegrationTests(TransactionTestCase):
             SMTPNotificationBackend().send(notification, delivery_key=notification.delivery_key)
         self.assertEqual(len(dropped_server.messages), 1)
 
+    # При постоянной SMTP AUTH ошибке worker переводит задачу в manual_review,
+    # сохраняет безопасный код, а логи не содержат контактных, серверных секретов и raw-ошибки.
     def test_worker_logs_safe_codes_without_smtp_error_contact_or_credential_values(self):
         order, _, outbox = self.retail_request(
             name=f"Sensitive contact {self.marker}",
@@ -417,6 +435,8 @@ class NotificationIntegrationTests(TransactionTestCase):
             "raw-server-marker",
         )
 
+    # Перебирает запрещённые комбинации флага/host (включая удалённый IP), запрещает
+    # localhost даже при флаге без DNS lookup и принимает только числовой loopback IPv4.
     def test_plaintext_smtp_auth_requires_explicit_flag_and_numeric_loopback_host(self):
         username = "local-test-user"
         password = "local-test-password"
@@ -460,6 +480,8 @@ class NotificationIntegrationTests(TransactionTestCase):
                 backend = SMTPNotificationBackend()
                 self.assertTrue(backend.configuration_validated)
 
+    # Management command отклоняет SMTP AUTH без TLS до соединения и claim: outbox
+    # остаётся pending без попытки и lease, тестовый SMTP-сервер не получает команд.
     def test_worker_command_rejects_plaintext_smtp_auth_before_claiming(self):
         _, _, outbox = self.retail_request()
         with _LocalSMTPServer() as server, self.smtp_settings(
@@ -476,6 +498,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertIsNone(outbox.lease_token)
         self.assertEqual(server.commands, [], "Invalid credentials must be rejected before connecting to SMTP.")
 
+    # В трёх subprocess по очереди задаёт некорректное значение TLS, SSL или local-auth;
+    # каждый завершается с ImproperlyConfigured, называет настройку и скрывает marker.
     def test_invalid_smtp_boolean_environment_values_name_only_the_setting(self):
         base_dir = os.path.dirname(os.path.dirname(__file__))
         invalid_marker = "invalid-smtp-boolean-secret-marker"
@@ -506,6 +530,8 @@ class NotificationIntegrationTests(TransactionTestCase):
                 self.assertIn(setting_name, completed.stderr)
                 self.assertNotIn(invalid_marker, completed.stdout + completed.stderr)
 
+    # Невалидная стандартная SMTP-конфигурация отклоняется до claim; затем custom
+    # backend обрабатывает ту же задачу и переводит её в sent.
     def test_invalid_default_smtp_configuration_claims_nothing_but_custom_backend_runs(self):
         _, _, outbox = self.retail_request()
         with override_settings(
@@ -527,6 +553,8 @@ class NotificationIntegrationTests(TransactionTestCase):
             outbox.refresh_from_db()
             self.assertEqual(outbox.status, NotificationOutbox.Status.SENT)
 
+    # Проверяет задержки повторов 2 и 3 секунды (верхний предел), manual_review
+    # после лимита попыток, отказ просроченному и устаревшему claim-token и успех нового владельца.
     def test_claim_tokens_reject_expired_and_stale_finalization_and_retry_delay_caps(self):
         _, _, outbox = self.retail_request()
         fixed_now = timezone.now()
@@ -571,6 +599,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertFalse(stale_queue.mark_sent(old_owner), "A stale token cannot overwrite a newer claim.")
         self.assertTrue(stale_queue.mark_sent(new_owner))
 
+    # При истёкшем lease и исчерпанном лимите задача уходит в manual_review;
+    # тот же run_once продолжает очередь и отправляет следующую готовую задачу.
     def test_expired_exhausted_lease_moves_to_manual_review_and_once_drains_next_task(self):
         _, _, exhausted = self.retail_request()
         _, _, ready = self.retail_request()
@@ -593,6 +623,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertEqual(ready.status, NotificationOutbox.Status.SENT)
         self.assertEqual(len(backend.notifications), 1)
 
+    # Временная ошибка на последней попытке завершает задачу в manual_review и
+    # записывает delivery_attempt с результатом manual_review и безопасным кодом.
     def test_temporary_failure_at_attempt_limit_logs_manual_review_result(self):
         _, _, outbox = self.retail_request()
 
@@ -617,6 +649,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertEqual(delivery_log["result"], "manual_review")
         self.assertEqual(delivery_log["error_code"], "smtp_busy")
 
+    # Два конкурентных worker получают разные строки; во время callback отдельное
+    # PostgreSQL-соединение может взять блокировку уже заявленной строки, затем обе отправки завершаются.
     def test_two_workers_claim_distinct_rows_and_smtp_callback_can_lock_claimed_row(self):
         _, _, first = self.retail_request()
         _, _, second = self.retail_request()
@@ -683,6 +717,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertEqual(len(set(backend.request_numbers)), 2)
         self.assertCountEqual(callback_lock_checks, [first.pk, second.pk])
 
+    # Реальные retail/wholesale POST создают заявки и outbox и посылают NOTIFY после
+    # commit; после изменения/удаления товара once-command доставляет оба письма из снимка.
     def test_public_posts_commit_outbox_notify_and_real_once_worker_delivers_both_messages(self):
         client = Client()
         client.defaults["REMOTE_ADDR"] = f"notifications-{self.marker}"
@@ -758,6 +794,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         finally:
             listener.close()
 
+    # LISTEN не видит сигнал до commit или после rollback; одинаковые сигналы в одной
+    # транзакции объединяются, а один запуск worker обрабатывает все три готовые строки.
     def test_listen_receives_only_committed_notifications_and_one_wake_drains_all_ready_rows(self):
         listener = psycopg.connect(**connections["default"].get_connection_params(), autocommit=True)
         listener.execute("LISTEN notification_outbox")
@@ -793,6 +831,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         finally:
             listener.close()
 
+    # Проверяет два пути обнаружения без нового NOTIFY: готовая при старте задача и
+    # задача, добавленная во время ожидания, находится резервным сканированием.
     def test_worker_startup_and_fallback_scan_find_rows_without_a_new_signal(self):
         backend = _RecordingBackend()
         self.retail_request()
@@ -837,6 +877,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertTrue(inserted.is_set())
         self.assertEqual(len(backend.notifications), 1)
 
+    # Первая фабрика listener падает; worker переподключается, сначала регистрирует
+    # LISTEN на новом соединении и только затем доставляет накопленную задачу.
     def test_worker_reconnects_listener_and_listens_before_draining_backlog(self):
         self.retail_request()
         backend = _RecordingBackend()
@@ -873,6 +915,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertEqual(listen_calls, ["listening"])
         self.assertEqual(len(backend.notifications), 1)
 
+    # Задача с будущим next_attempt_at без NOTIFY отправляется по сроку повтора раньше
+    # 60-секундного резервного сканирования.
     def test_scheduled_retry_wakes_before_long_scan_deadline_without_notify(self):
         _, _, outbox = self.retail_request()
         scheduled_at = timezone.now() + timedelta(milliseconds=150)
@@ -891,6 +935,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertEqual(len(backend.notifications), 1)
         self.assertLess(elapsed, 2, "The worker should wake at next_attempt_at, not the 60-second scan.")
 
+    # При удерживаемой блокировке первой строки `skip_locked` выдаёт вторую; после
+    # снятия блокировки следующая попытка claim получает первую строку.
     def test_held_row_is_skipped_and_another_ready_row_is_claimed(self):
         _, _, locked = self.retail_request()
         _, _, available = self.retail_request()
@@ -910,6 +956,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         next_claim = NotificationQueue().claim_next()
         self.assertEqual(next_claim.outbox_id, locked.pk)
 
+    # SMTP принимает письмо, но имитированная ошибка БД при mark_sent оставляет lease
+    # processing; после истечения lease повтор отправляет то же письмо с тем же Message-ID.
     def test_accepted_smtp_message_survives_finalization_db_error_and_recovers_by_lease(self):
         order, _, outbox = self.retail_request(
             name=f"Sensitive contact {self.marker}",
@@ -962,6 +1010,8 @@ class NotificationIntegrationTests(TransactionTestCase):
                 "psql-password-marker",
             )
 
+    # Завершает backend listener через pg_terminate_backend, добавляет задачу без NOTIFY
+    # во время разрыва и проверяет повторный LISTEN, поиск backlog и успешную доставку.
     def test_terminated_listener_reconnects_relists_and_drains_backlog(self):
         backend = _RecordingBackend()
         stop_event = threading.Event()
@@ -1036,6 +1086,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         outbox = NotificationOutbox.objects.get(order__submission_key=backend.notifications[0][0].submission_key)
         self.assertEqual(outbox.status, NotificationOutbox.Status.SENT)
 
+    # В изолированном subprocess SIGTERM завершает worker штатно после отправки;
+    # SIGKILL оставляет processing lease, который после истечения восстанавливает новый worker.
     def test_worker_subprocess_handles_sigterm_and_sigkill_lease_recovery(self):
         database = connections["default"].settings_dict
         database_name = database["NAME"]
@@ -1124,6 +1176,8 @@ class NotificationIntegrationTests(TransactionTestCase):
             time.sleep(0.05)
         self.fail(f"Outbox {outbox_id} did not reach status {status!r} before timeout.")
 
+    # Пользователь только с view permission не запускает retry; change-пользователь
+    # возвращает только manual_review в pending, сбрасывает попытки/ошибку/lease и шлёт один NOTIFY.
     def test_admin_retry_requires_change_permission_and_notifies_only_eligible_rows(self):
         _, _, manual = self.retail_request()
         _, _, pending = self.retail_request()
@@ -1196,6 +1250,8 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertTrue(LogEntry.objects.filter(user=change_user, object_id=str(manual.pk)).exists())
         listener.close()
 
+    # Mock-проверка preflight success/failure: успех сообщает, что письмо не отправлено;
+    # ошибка скрывает raw marker. Оба пути закрывают соединение, не выполняют SQL и не меняют строки.
     def test_g09_smtp_preflight_success_and_failure_leave_all_request_and_outbox_rows_unchanged(self):
         order, item, retail_outbox = self.retail_request()
         inquiry, wholesale_outbox = self.wholesale_request(need="Existing wholesale need")
@@ -1259,6 +1315,8 @@ class NotificationIntegrationTests(TransactionTestCase):
                 connection.close.assert_called_once_with()
                 self.assertEqual(current_rows(), unchanged_rows)
 
+    # Вредоносные поля формы и CRLF-вставки не меняют SMTP From/To/RCPT или заголовки;
+    # введённые строки остаются только в теле, worker отправляет одно письмо.
     def test_q02_public_form_controls_stay_in_body_and_cannot_change_mail_recipients(self):
         self.client.post(
             reverse("orders:cart"),
@@ -1323,6 +1381,9 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertTrue(recipient_commands[0].upper().startswith("RCPT TO:<SELLER@EXAMPLE.TEST>"))
         self.assertNotIn("attacker@attacker.example", mail_commands[0] + recipient_commands[0])
 
+    # Два subTest: отказ SMTP AUTH на локальном тестовом сервере и ошибка проверки TLS-сертификата
+    # через patch. В обоих случаях обе заявки сохраняются, outbox уходит в manual_review,
+    # сохраняет ожидаемый код, а логи и строки не раскрывают диагностические секреты.
     def test_q04_auth_and_certificate_failures_preserve_retail_and_wholesale_requests(self):
         for scenario in ("smtp_authentication", "smtp_certificate"):
             with self.subTest(scenario=scenario):

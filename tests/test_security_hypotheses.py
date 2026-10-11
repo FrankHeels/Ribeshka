@@ -2,6 +2,16 @@
 # с отдельной PostgreSQL до выхода проекта в production.
 """Local reproductions, not evidence of a deployment vulnerability."""
 
+# Запуск: .venv/bin/python manage.py test tests.test_security_hypotheses --settings=fishsite.settings_test --noinput
+# Django создаёт отдельную БД test_fishsite в изолированном PostgreSQL-кластере
+# (127.0.0.1:15432), применяет миграции и удаляет БД после прогона.
+# QuotaHypothesisTests использует TestCase, тестовый DB-клиент Client с
+# проверкой CSRF, сессии и реальные записи PostgreSQL; класс переопределяет
+# лимит формы на 2 запроса за 3600 секунд. Сетевые адреса для квоты синтетические.
+# SMTPHypothesisTests использует SimpleTestCase без доступа к БД и настоящий
+# локальный SMTP-сервер на loopback из tests.test_notifications; override_settings
+# направляет Django SMTP backend к нему. В этом файле моки не используются.
+
 import ipaddress
 import uuid
 from email import policy
@@ -65,15 +75,24 @@ class QuotaHypothesisTests(TestCase):
             self.assertEqual(inquiry.contact_name, second_data["contact_name"])
             self.assertEqual(NotificationOutbox.objects.filter(inquiry=inquiry).count(), 1)
 
+    # Две разные CSRF-сессии с отдельными ключами отправки используют один IPv6
+    # адрес: два POST с пустым телефоном возвращают 400 и расходуют квоту; затем
+    # корректная заявка из второй сессии получает 429, без Inquiry и записи outbox.
     def test_same_remote_address_shares_quota_across_sessions(self):
         self.exercise_quota(same_address=True)
 
+    # Для двух разных IPv6 адресов квоты независимы: после двух ошибочных POST
+    # с первого адреса валидный POST со второго возвращает 302, создаёт Inquiry
+    # с переданным именем и ровно одну связанную запись NotificationOutbox.
     def test_distinct_remote_addresses_have_independent_quota(self):
         self.exercise_quota(same_address=False)
 
 
 class SMTPHypothesisTests(SimpleTestCase):
     # SimpleTestCase forbids database queries, including accidental DTO loading.
+    # При пустых SMTP-учётных данных и выключенных TLS/SSL уведомление принимается
+    # локальным SMTP-сервером: отправлена ровно одна DATA-команда и одно письмо
+    # с маркером; команды STARTTLS и AUTH не выполнялись.
     def test_without_credentials_or_tls_sends_plaintext_data(self):
         marker = f"hypothesis-{uuid.uuid4().hex}"
         notification = RequestNotification(
