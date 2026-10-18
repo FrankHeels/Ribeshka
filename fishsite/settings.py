@@ -4,6 +4,7 @@ from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 
 from dotenv import load_dotenv
+from django.templatetags.static import static
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 # The test profile must never load application/SMTP credentials.
@@ -59,12 +60,19 @@ CSRF_TRUSTED_ORIGINS = [
 YANDEX_MAPS_API_KEY = _environment.get("YANDEX_MAPS_API_KEY", "").strip()
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
+    "unfold.apps.BasicAppConfig",
+    "fishsite.backoffice.apps.BackofficeAdminConfig",
+    "fishsite.backoffice.apps.BackofficeConfig",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "axes",
+    "django_otp",
+    "django_otp.plugins.otp_totp",
+    "django_otp.plugins.otp_static",
+    "two_factor",
     "catalog.apps.CatalogConfig",
     "content.apps.ContentConfig",
     "orders.apps.OrdersConfig",
@@ -77,8 +85,10 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django_otp.middleware.OTPMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
 ROOT_URLCONF = "fishsite.urls"
 TEMPLATES = [
@@ -94,6 +104,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "catalog.context_processors.navigation_categories",
                 "orders.context_processors.cart_count",
+                "content.context_processors.site_settings_context",
             ],
         },
     }
@@ -143,6 +154,23 @@ NOTIFICATION_RETRY_MAX_SECONDS = _integer_environment_setting("NOTIFICATION_RETR
 NOTIFICATION_SCAN_INTERVAL_SECONDS = _integer_environment_setting("NOTIFICATION_SCAN_INTERVAL_SECONDS", "60")
 NOTIFICATION_LEASE_SECONDS = _integer_environment_setting("NOTIFICATION_LEASE_SECONDS", "300")
 
+# Each exchange stream is opt-in. Credentials are server-only, and the test
+# profile reads none of the application's environment variables.
+MOYSKLAD_DEFERRED_PRODUCT_IDS = _environment.get("MOYSKLAD_DEFERRED_PRODUCT_IDS", "").strip()
+MOYSKLAD = {
+    name: _environment.get(f"MOYSKLAD_{name.upper()}", "").strip()
+    for name in (
+        "account_id", "namespace", "api_token", "admin_token", "price_type_id", "currency_id",
+        "unit_id", "organization_id", "agent_id", "initial_state_id", "webhook_secret", "webhook_url",
+    )
+}
+MOYSKLAD["environment"] = _environment.get("MOYSKLAD_ENVIRONMENT", "production").strip()
+MOYSKLAD.update({
+    name: _boolean_environment_setting(f"MOYSKLAD_{name.upper()}")
+    for name in ("catalog_enabled", "prices_enabled", "export_enabled", "statuses_enabled")
+})
+MOYSKLAD_LEASE_SECONDS = _integer_environment_setting("MOYSKLAD_LEASE_SECONDS", "300")
+
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = _environment.get("SMTP_HOST", "")
 EMAIL_PORT = _integer_environment_setting("SMTP_PORT", "465")
@@ -157,10 +185,20 @@ DEFAULT_FROM_EMAIL = _environment.get("NOTIFICATION_FROM_EMAIL", "")
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "moysklad_webhook_secret": {
+            "()": "integrations.moysklad.logging.WebhookSecretFilter",
+        },
+    },
     "formatters": {
         "notification_console": {
             "()": "integrations.notifications.events.NotificationConsoleFormatter",
             "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+        "django.server": {
+            "()": "django.utils.log.ServerFormatter",
+            "format": "[{server_time}] {message}",
+            "style": "{",
         },
     },
     "handlers": {
@@ -169,6 +207,16 @@ LOGGING = {
             "level": "INFO",
             "formatter": "notification_console",
         },
+        "request_console": {
+            "class": "logging.StreamHandler",
+            "filters": ["moysklad_webhook_secret"],
+        },
+        "django.server": {
+            "class": "logging.StreamHandler",
+            "filters": ["moysklad_webhook_secret"],
+            "formatter": "django.server",
+        },
+        "null": {"class": "logging.NullHandler"},
     },
     "loggers": {
         "integrations.notifications": {
@@ -176,6 +224,13 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
+        "django": {"handlers": ["request_console"], "level": "INFO", "propagate": False},
+        "django.request": {"handlers": ["request_console"], "level": "WARNING", "propagate": False},
+        "django.server": {"handlers": ["django.server"], "level": "INFO", "propagate": False},
+        "gunicorn.access": {"handlers": ["request_console"], "level": "INFO", "propagate": False},
+        "gunicorn.error": {"handlers": ["request_console"], "level": "INFO", "propagate": False},
+        "httpx": {"handlers": ["null"], "level": "CRITICAL", "propagate": False},
+        "httpcore": {"handlers": ["null"], "level": "CRITICAL", "propagate": False},
     },
 }
 
@@ -197,3 +252,111 @@ SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 # Refuse alternate entry points (including django-admin test) on normal settings.
 TEST_RUNNER = "fishsite.test_runner.IsolatedTestRunner"
+
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = 1
+AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
+AXES_USERNAME_FORM_FIELD = "username"
+AXES_USERNAME_CALLABLE = "fishsite.backoffice.axes.get_attempt_username"
+AXES_CLIENT_IP_CALLABLE = "fishsite.backoffice.axes.get_attempt_ip"
+AXES_PASSWORD_FORM_FIELD = "auth-password"
+AXES_SENSITIVE_PARAMETERS = [
+    "username", "ip_address", "auth-username", "auth-password",
+    "token-otp_token", "backup-otp_token",
+]
+AXES_RESET_ON_SUCCESS = True
+AXES_ENABLE_ADMIN = False
+if TRUST_X_REAL_IP:
+    AXES_IPWARE_META_PRECEDENCE_ORDER = ("HTTP_X_REAL_IP", "REMOTE_ADDR")
+else:
+    AXES_IPWARE_META_PRECEDENCE_ORDER = ("REMOTE_ADDR",)
+
+TWO_FACTOR_PATCH_ADMIN = False
+LOGIN_URL = "two_factor:login"
+LOGIN_REDIRECT_URL = "/admin/"
+TWO_FACTOR_LOGIN_TIMEOUT = 600
+
+UNFOLD = {
+    "THEME": None,
+    "SITE_TITLE": "FishSite",
+    "SITE_HEADER": "FishSite — управление сайтом",
+    "SITE_SUBHEADER": "Каталог, заявки и контент",
+    "SITE_ICON": lambda request: static("img/brand-logo.png"),
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    # Resolve static URLs after app loading. ``STATIC_URL`` is relative in
+    # local installs, so make admin assets root-relative for /admin/ routes.
+    "STYLES": [lambda request: static("admin/backoffice.css") + "?v=2026-10-18-3"],
+    "SCRIPTS": [lambda request: static("admin/theme-default.js") + "?v=2026-10-12-1"],
+    "COLORS": {
+        "primary": {
+            "50": "#f8f4e9", "100": "#efe5c9", "200": "#e3d2a2",
+            "300": "#d3b873", "400": "#bd9a4f", "500": "#a98239",
+            "600": "#8a692e", "700": "#6d5128", "800": "#574124",
+            "900": "#493720", "950": "#291e11",
+        },
+    },
+    "DASHBOARD_CALLBACK": "fishsite.backoffice.dashboard.dashboard_callback",
+    "SIDEBAR": {
+        "show_search": False,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Обзор",
+                "permission": lambda request: any(
+                    request.user.has_perm(permission)
+                    for permission in ("catalog.view_product", "orders.view_order", "inquiries.view_inquiry", "content.view_contentpage")
+                ),
+                "items": [
+                    {"title": "Главная панель", "icon": "space_dashboard", "link": "/admin/"},
+                ],
+            },
+            {
+                "title": "Каталог",
+                "permission": lambda request: request.user.has_perm("catalog.view_product") or request.user.has_perm("content.change_homepagerecommendation"),
+                "items": [
+                    {"title": "Товары", "icon": "inventory_2", "link": "/admin/catalog/product/", "permission": lambda request: request.user.has_perm("catalog.view_product")},
+                    {"title": "Категории", "icon": "category", "link": "/admin/catalog/category/", "permission": lambda request: request.user.has_perm("catalog.view_category")},
+                    {"title": "Рекомендуемые товары", "icon": "star", "link": "/admin/content/homepagerecommendation/", "permission": lambda request: request.user.has_perm("content.change_homepagerecommendation")},
+                ],
+            },
+            {
+                "title": "Заявки",
+                "permission": lambda request: request.user.has_perm("orders.view_order") or request.user.has_perm("inquiries.view_inquiry"),
+                "items": [
+                    {"title": "Розничные", "icon": "shopping_bag", "link": "/admin/orders/order/", "permission": lambda request: request.user.has_perm("orders.view_order")},
+                    {"title": "Оптовые", "icon": "request_quote", "link": "/admin/inquiries/inquiry/", "permission": lambda request: request.user.has_perm("inquiries.view_inquiry")},
+                ],
+            },
+            {
+                "title": "Контент сайта",
+                "permission": lambda request: (
+                    request.user.has_perm("content.view_contentpage")
+                    or request.user.has_perm("content.change_sitesettings")
+                ),
+                "items": [
+                    {"title": "Страницы", "icon": "article", "link": "/admin/content/contentpage/", "permission": lambda request: request.user.has_perm("content.view_contentpage")},
+                    {"title": "Контакты и общие настройки", "icon": "contact_page", "link": "/admin/content/sitesettings/1/change/", "permission": lambda request: request.user.has_perm("content.change_sitesettings")},
+                ],
+            },
+            {
+                "title": "Интеграция",
+                "permission": lambda request: request.user.has_perm("integrations.view_moyskladsyncstate"),
+                "items": [
+                    {"title": "МойСклад", "icon": "sync", "link": "/admin/moysklad/", "permission": lambda request: request.user.has_perm("integrations.view_moyskladsyncstate")},
+                    {"title": "Технические настройки МойСклад", "icon": "settings", "link": "/admin/moysklad/technical/", "permission": lambda request: request.user.is_superuser},
+                ],
+            },
+        ],
+    },
+}

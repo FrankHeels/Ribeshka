@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from catalog.models import Category, Product
 from .legal_documents import LEGAL_DOCUMENTS, render_legal_document
-from .models import ConsentRevision, ContentPage
+from .models import ConsentRevision, ContentPage, HomepageRecommendation
 
 
 PAGE_DEFAULTS = {
@@ -46,20 +46,34 @@ def home(request):
     contacts = section_map.get("contacts")
     published_products = Product.objects.published().select_related("category").prefetch_related("images")
     categories = (
-        Category.objects.filter(products__is_published=True)
+        Category.objects.filter(products__is_published=True, products__integration_block_reason="")
         .order_by("display_order", "name", "pk")
         .distinct()
         .prefetch_related(
             Prefetch(
                 "products",
-                queryset=published_products.order_by("name", "pk"),
+                queryset=published_products.order_by("display_order", "name", "pk"),
                 to_attr="published_products",
             )
         )
     )
     request.navigation_categories = categories
-    featured_products = list(published_products.order_by("name", "pk")[:2])
+    recommendations = HomepageRecommendation.objects.select_related("product").prefetch_related("product__images").order_by("slot")
+    featured_products = [
+        recommendation.product
+        for recommendation in recommendations
+        if recommendation.product_id and recommendation.product.is_published
+        and not recommendation.product.integration_block_reason
+    ]
     catalog_ready = Product.objects.published().exists()
+    hero_values = []
+    for key, icon, default_text in (
+        ("hero_value_1", "img/quality-raw-material.svg", "Сырье высочайшего качества"),
+        ("hero_value_2", "img/own-production.svg", "Собственное производство"),
+        ("hero_value_3", "img/modern-standards.svg", "Новейшие стандарты"),
+    ):
+        section = section_map.get(key)
+        hero_values.append({"icon": icon, "text": section.title if section and section.title else default_text})
 
     return render(
         request,
@@ -78,7 +92,7 @@ def home(request):
             "categories": categories,
             "featured_products": featured_products,
             "catalog_ready": catalog_ready,
-            "hero_photo": None,
+            "hero_values": hero_values,
             "advantages": advantages,
             "about_summary": about.body if about else "",
             "contact_summary": contacts.body if contacts else "",
@@ -98,7 +112,7 @@ def _page(request, *, key, title, description, notice, template="content/page.ht
     lead = next((section for section in sections if section.key == "lead"), None)
     substantive_sections = [
         section for section in sections
-        if section.key != "lead" and (section.title or section.body.strip())
+        if section.key != "lead" and (section.title or section.body.strip() or section.image)
     ]
     page_title = page.title if page and page.title else title
     return render(
@@ -137,7 +151,14 @@ def delivery(request):
 
 def contacts(request):
     title, description, notice = PAGE_DEFAULTS[ContentPage.Key.CONTACTS]
-    return _page(request, key=ContentPage.Key.CONTACTS, title=title, description=description, notice=notice)
+    return _page(
+        request,
+        key=ContentPage.Key.CONTACTS,
+        title=title,
+        description=description,
+        notice=notice,
+        extra_context={"show_contact_details": True},
+    )
 
 
 def privacy(request):
@@ -240,7 +261,7 @@ def sitemap(request):
     ]
     locations.extend(
         request.build_absolute_uri(reverse("catalog:category", args=(slug,)))
-        for slug in Category.objects.filter(products__is_published=True)
+        for slug in Category.objects.filter(products__is_published=True, products__integration_block_reason="")
         .order_by()
         .values_list("slug", flat=True)
         .distinct()

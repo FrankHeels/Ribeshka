@@ -7,7 +7,9 @@ from content.views import home, not_found, sitemap
 
 
 urlpatterns = [
+    path("two_factor/", include("fishsite.backoffice.auth")),
     path("admin/", admin.site.urls),
+    path("integrations/", include("integrations.urls")),
     path("", home, name="home"),
     path("catalog/", include(("catalog.urls", "catalog"), namespace="catalog")),
     path("", include(("orders.urls", "orders"), namespace="orders")),

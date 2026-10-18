@@ -78,6 +78,12 @@ services:
       db:
         condition: service_healthy
 
+  moysklad-worker:
+    extends:
+      service: worker
+    profiles: ["moysklad"]
+    command: ["python", "manage.py", "process_moysklad"]
+
   nginx:
     image: nginx:stable-alpine
     restart: unless-stopped

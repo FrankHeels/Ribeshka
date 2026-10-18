@@ -1,0 +1,24 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>{% block title %}Защищённый вход · FishSite{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'admin/backoffice-auth.css' %}">
+  {% block extra_media %}{% endblock %}
+</head>
+<body>
+  <main class="auth-shell">
+    <a class="auth-brand" href="/">FishSite</a>
+    <p class="auth-caption">Управление каталогом, заявками и содержанием сайта</p>
+    <section class="auth-card">
+      {% block content_wrapper %}
+        <div class="container">{% block content %}{% endblock %}</div>
+      {% endblock %}
+    </section>
+    <p class="auth-footer">Для доступа требуется подтверждённая двухфакторная аутентификация.</p>
+  </main>
+</body>
+</html>

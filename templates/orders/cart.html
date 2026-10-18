@@ -53,7 +53,7 @@
             <strong class="cart-total-value" data-cart-total-value{% if not cart_total_is_valid %} aria-hidden="true"{% endif %}>{% if cart_total_is_valid %}{{ cart_total|floatformat:2 }} ₽{% else %}—{% endif %}</strong>
             <span class="visually-hidden" data-cart-total-status role="status" aria-live="polite">{% if not cart_total_is_valid %}Предварительная сумма недоступна. Проверьте вес позиций.{% endif %}</span>
           </p>
-          <p class="muted-copy">Стоимость доставки и окончательную сумму подтвердит продавец.</p>
+          <p class="muted-copy">Наличие, фактический вес, стоимость доставки и окончательную сумму подтвердит менеджер.</p>
         </div>
 
         <section class="form-panel" id="request" aria-labelledby="retail-request-title">
@@ -103,13 +103,13 @@
             </fieldset>
             <div class="field delivery-address" data-delivery-address>
               <label for="id_address">Адрес доставки <span class="field-hint">нужен при доставке</span></label>
-              <textarea id="id_address" name="address" maxlength="2000" rows="3" autocomplete="street-address" aria-describedby="{% if field_errors.address %}address-help address-error{% else %}address-help{% endif %}" {% if field_errors.address %}aria-invalid="true"{% endif %}>{{ values.address|default_if_none:'' }}</textarea>
+              <textarea id="id_address" name="address" maxlength="255" rows="3" autocomplete="street-address" aria-describedby="{% if field_errors.address %}address-help address-error{% else %}address-help{% endif %}" {% if field_errors.address %}aria-invalid="true"{% endif %}>{{ values.address|default_if_none:'' }}</textarea>
               <p class="field-help" id="address-help">Для самовывоза оставьте это поле пустым. Адрес и условия доставки подтвердит продавец.</p>
               {% if field_errors.address %}<p class="field-error" id="address-error">{{ field_errors.address.0 }}</p>{% endif %}
             </div>
             <div class="field">
               <label for="id_comment">Комментарий <span class="field-hint">необязательно</span></label>
-              <textarea id="id_comment" name="comment" maxlength="5000" rows="3" {% if field_errors.comment %}aria-invalid="true" aria-describedby="comment-error"{% endif %}>{{ values.comment|default_if_none:'' }}</textarea>
+              <textarea id="id_comment" name="comment" maxlength="3000" rows="3" {% if field_errors.comment %}aria-invalid="true" aria-describedby="comment-error"{% endif %}>{{ values.comment|default_if_none:'' }}</textarea>
               {% if field_errors.comment %}<p class="field-error" id="comment-error">{{ field_errors.comment.0 }}</p>{% endif %}
             </div>
             <label class="choice consent-choice">

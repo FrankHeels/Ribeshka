@@ -1,0 +1,24 @@
+{% load i18n static unfold %}
+
+{% if not is_popup %}
+  <div class="backoffice-userlinks flex flex-row gap-3 items-center ml-auto">
+    {% if environment %}
+      {% include "unfold/helpers/label.html" with text=environment.0 type=environment.1 %}
+    {% endif %}
+    <button type="button" class="backoffice-theme-toggle" aria-label="Переключить цветовую тему"
+            x-on:click="switchTheme(adminTheme === 'dark' ? 'light' : 'dark')">
+      <span class="material-symbols-outlined" aria-hidden="true" x-text="adminTheme === 'dark' ? 'light_mode' : 'dark_mode'"></span>
+      <span class="backoffice-theme-label" x-text="adminTheme === 'dark' ? 'Светлая тема' : 'Тёмная тема'"></span>
+    </button>
+    <details class="backoffice-account-menu">
+      <summary aria-label="Меню учётной записи"><span class="material-symbols-outlined" aria-hidden="true">person</span><span class="backoffice-account-label">Аккаунт</span></summary>
+      <div class="backoffice-account-dropdown">
+        <a class="backoffice-account-link" href="{% url 'two_factor:profile' %}">Защита аккаунта</a>
+        <a class="backoffice-account-link" href="{% url 'two_factor:backup_tokens' %}">Резервные коды</a>
+        {% include "unfold/helpers/account_links.html" %}
+      </div>
+    </details>
+    {% action_list %}
+    {% if nav_global_side %}{{ nav_global_side }}{% endif %}
+  </div>
+{% endif %}

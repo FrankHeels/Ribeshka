@@ -28,6 +28,7 @@ from content.legal_documents import read_legal_document_source
 from content.models import ConsentRevision
 from inquiries.models import Inquiry
 from orders.models import Order
+from tests.backoffice_helpers import login_verified_admin
 
 
 class ConsentRevisionArchiveTests(TestCase):
@@ -103,7 +104,7 @@ class ConsentRevisionArchiveTests(TestCase):
             QuerySet.delete(ConsentRevision.objects.filter(pk=revision.pk))
 
         user = get_user_model().objects.create_superuser(username="consent-archive-admin", email="")
-        self.client.force_login(user)
+        login_verified_admin(self.client, user)
         order_page = self.client.get(reverse("admin:orders_order_change", args=(order.pk,)))
         self.assertEqual(order_page.status_code, 200)
         archive_url = reverse("admin:content_consentrevision_change", args=(revision.pk,))

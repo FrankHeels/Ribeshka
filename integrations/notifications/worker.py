@@ -7,6 +7,7 @@ import time
 
 import psycopg
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.db import DatabaseError, connections
 
 from .contracts import (
@@ -103,6 +104,20 @@ class NotificationWorker:
         self.stop_event = stop_event or threading.Event()
         self.now = now or self.queue.now
         self.backend_name = getattr(backend, "backend_name", backend.__class__.__name__)
+        self._next_integration_monitor_at = None
+
+    def _monitor_integration(self):
+        now = self.now()
+        if self._next_integration_monitor_at is None or now >= self._next_integration_monitor_at:
+            from integrations.moysklad.incidents import monitor_integration
+            self._next_integration_monitor_at = now + timedelta(seconds=60)
+            try:
+                monitor_integration(using=self.queue.using, now=now)
+            except ImproperlyConfigured:
+                log_notification_event(
+                    logger, logging.WARNING, event="integration_monitor_failure",
+                    error_code="monitor_unavailable",
+                )
 
     def _deliver(self, claim):
         started = self.monotonic()
@@ -170,6 +185,7 @@ class NotificationWorker:
     def drain_ready(self):
         processed = 0
         while not self.stop_event.is_set():
+            self._monitor_integration()
             claim = self.queue.claim_next()
             if claim is None:
                 break
@@ -178,6 +194,7 @@ class NotificationWorker:
         return processed
 
     def run_once(self):
+        self._monitor_integration()
         return self.drain_ready()
 
     def run(self):
@@ -193,6 +210,7 @@ class NotificationWorker:
                 next_scan_at = self.now()
                 while not self.stop_event.is_set():
                     now = self.now()
+                    self._monitor_integration()
                     if now >= next_scan_at:
                         self.drain_ready()
                         next_scan_at = self.now() + timedelta(seconds=self.scan_interval)
@@ -201,6 +219,8 @@ class NotificationWorker:
 
                     due_at = self.queue.next_due_at()
                     deadlines = [next_scan_at]
+                    if self._next_integration_monitor_at is not None:
+                        deadlines.append(self._next_integration_monitor_at)
                     if due_at is not None:
                         deadlines.append(due_at)
                     delay = (min(deadlines) - self.now()).total_seconds()

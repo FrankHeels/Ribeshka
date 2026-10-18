@@ -20,9 +20,12 @@ def _page_products(request, queryset):
 
 
 def category(request, slug):
-    public_categories = Category.objects.filter(products__is_published=True).distinct()
+    public_categories = Category.objects.filter(
+        products__is_published=True, products__integration_block_reason="",
+    ).distinct()
     category_obj = get_object_or_404(public_categories, slug=slug)
-    queryset = _published_products().filter(category=category_obj).order_by("name", "pk")
+    queryset = _published_products().filter(category=category_obj)
+    queryset = queryset.order_by("display_order", "name", "pk")
     page_obj, products = _page_products(request, queryset)
     description = category_obj.description or f"Опубликованные товары категории «{category_obj.name}»."
 
@@ -31,8 +34,8 @@ def category(request, slug):
         "catalog/category.html",
         {
             "page_title": category_obj.name,
-            "seo_title": f"{category_obj.name} — Калининградская рыбёшка",
-            "meta_description": description[:320],
+            "seo_title": category_obj.seo_title or f"{category_obj.name} — Калининградская рыбёшка",
+            "meta_description": (category_obj.seo_description or description)[:320],
             "category": category_obj,
             "products": products,
             "page_obj": page_obj,
@@ -43,14 +46,14 @@ def category(request, slug):
 
 def product(request, slug):
     product_obj = get_object_or_404(_published_products(), slug=slug)
-    meta_description = product_obj.short_description or product_obj.description or product_obj.name
+    meta_description = product_obj.seo_description or product_obj.short_description or product_obj.description or product_obj.name
 
     return render(
         request,
         "catalog/product.html",
         {
             "page_title": product_obj.name,
-            "seo_title": f"{product_obj.name} — Калининградская рыбёшка",
+            "seo_title": product_obj.seo_title or f"{product_obj.name} — Калининградская рыбёшка",
             "meta_description": meta_description[:320],
             "product": product_obj,
             "forms_enabled": True,

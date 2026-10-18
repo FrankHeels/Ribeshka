@@ -1,0 +1,26 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <div class="backoffice-dashboard">
+    <header class="backoffice-page-intro">
+      <p class="backoffice-eyebrow">Каталог</p>
+      <h1>{{ title }}</h1>
+      <p>Скрытые товары не видны покупателям, не попадают в рекомендации и не удаляются из заявок.</p>
+    </header>
+    <section class="backoffice-card">
+      <h2>Будут скрыты:</h2>
+      <ul>{% for product in products %}<li>{{ product.name }}</li>{% endfor %}</ul>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="{{ action_name }}">
+        <input type="hidden" name="index" value="0">
+        <input type="hidden" name="select_across" value="{{ select_across }}">
+        {% for product_id in selected_ids %}<input type="hidden" name="{{ action_checkbox_name }}" value="{{ product_id }}">{% endfor %}
+        <div class="submit-row">
+          <button class="button button-primary" type="submit" name="confirm_hide" value="yes">Подтвердить скрытие</button>
+          <a class="button button-secondary" href="{% url 'admin:catalog_product_changelist' %}">Вернуться к товарам</a>
+        </div>
+      </form>
+    </section>
+  </div>
+{% endblock %}

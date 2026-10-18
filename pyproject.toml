@@ -5,7 +5,11 @@ description = "Server-rendered storefront shell for FishSite"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "Django==5.2.17",
+    "django-axes>=8,<9",
+    "django-two-factor-auth[phonenumberslite]>=1.18,<2",
+    "django-unfold==0.108.0",
     "gunicorn>=23,<24",
+    "httpx>=0.28,<0.29",
     "markdown>=3.9,<4",
     "Pillow>=11,<13",
     "psycopg[binary]>=3.2,<4",

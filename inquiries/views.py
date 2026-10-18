@@ -22,16 +22,14 @@ def wholesale(request):
 @public_form_database_fallback("inquiries:wholesale", "Вернуться к форме")
 @require_http_methods(["GET", "HEAD"])
 def success(request, token):
-    inquiry = Inquiry.objects.filter(success_token=token).only("inquiry_number").first()
-    if inquiry is None:
+    if not Inquiry.objects.filter(success_token=token).exists():
         raise Http404("Запрос не найден")
     response = render(
         request,
         "inquiries/success.html",
         {
-            "page_title": "Запрос принят",
+            "page_title": "Заявка принята",
             "meta_robots": "noindex, nofollow",
-            "inquiry_number": inquiry.inquiry_number,
         },
     )
     response["X-Robots-Tag"] = "noindex, nofollow"

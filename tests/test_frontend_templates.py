@@ -1,16 +1,17 @@
 # Запуск только этого файла: `.venv/bin/python manage.py test tests.test_frontend_templates --settings=fishsite.settings_test --noinput`.
 # Профиль `fishsite.settings_test` использует изолированную тестовую БД PostgreSQL
-# (`127.0.0.1:15432`, база `test_fishsite`); этот класс `SimpleTestCase` сам БД не читает.
+# (`127.0.0.1:15432`, база `test_fishsite`); `TestCase` разрешает шаблонному
+# контекст-процессору читать общие настройки сайта в этой тестовой БД.
 # Сценарии собирают фиктивный GET-запрос через `RequestFactory`, задают синтетические
 # данные товара и рендерят Django-шаблоны через `render_to_string`; проверяется HTML.
 import re
 from decimal import Decimal
 
 from django.template.loader import render_to_string
-from django.test import RequestFactory, SimpleTestCase
+from django.test import RequestFactory, TestCase
 
 
-class FrontendTemplateTests(SimpleTestCase):
+class FrontendTemplateTests(TestCase):
     def setUp(self):
         self.request = RequestFactory().get("/")
         # These tests exercise markup with an explicit empty navigation fixture.

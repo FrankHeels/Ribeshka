@@ -9,26 +9,19 @@
         <p class="hero-context">{% if hero_section.title %}{{ hero_section.title }}{% else %}Калининградская рыбёшка / розница и опт{% endif %}</p>
         <h1 id="home-hero-title">{% if home_title %}{{ home_title }}{% else %}Рыбная продукция для вашего стола{% endif %}</h1>
         {% if hero_section.body %}<div class="hero-lead">{{ hero_section.body|linebreaks }}</div>{% else %}<p class="hero-lead">{% if catalog_ready %}Выбирайте рыбную продукцию и оставляйте заявку на сайте. Вес, стоимость и условия получения согласуем с вами лично.{% else %}Ассортимент готовится к публикации. Здесь появятся категории и актуальные цены.{% endif %}</p>{% endif %}
+        <p class="notice hero-order-note"><strong>Цены на сайте ориентировочные.</strong> Наличие нужного объёма и итоговую стоимость подтвердит менеджер. Заявка не резервирует товар.</p>
         <div class="hero-actions">
-          <a class="button button-primary" href="#assortment">Перейти к ассортименту <span class="button-arrow" aria-hidden="true">↘</span></a>
+          <a class="button button-primary" href="#assortment">Перейти к ассортименту <span class="button-arrow" aria-hidden="true">{% include "partials/arrow-icon.html" with direction="down-right" %}</span></a>
         </div>
       </div>
       <ul class="hero-values reveal-up" aria-label="Наши преимущества" role="list">
-        <li class="hero-value">
-          <img src="{% static 'img/quality-raw-material.svg' %}?v=2026-10-08-3" alt="" aria-hidden="true" width="112" height="112">
-          <p>Сырье высочайшего качества</p>
-        </li>
-        <li class="hero-value">
-          <img src="{% static 'img/own-production.svg' %}?v=2026-10-08-3" alt="" aria-hidden="true" width="112" height="112">
-          <p>Собственное производство</p>
-        </li>
-        <li class="hero-value">
-          <img src="{% static 'img/modern-standards.svg' %}?v=2026-10-08-3" alt="" aria-hidden="true" width="112" height="112">
-          <p>Новейшие стандарты</p>
-        </li>
+        {% for value in hero_values %}<li class="hero-value">
+          <img src="{% static value.icon %}" alt="" aria-hidden="true" width="112" height="112">
+          <p>{{ value.text }}</p>
+        </li>{% endfor %}
       </ul>
     </div>
-    <div class="hero-bottom page-width"><span>Рыбная продукция / Калининградская рыбёшка</span><a href="#request-steps">Как проходит заявка <span aria-hidden="true">↓</span></a></div>
+    <div class="hero-bottom page-width"><span>Рыбная продукция / Калининградская рыбёшка</span><a href="#request-steps">Как проходит заявка <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="down" %}</span></a></div>
   </section>
 
   <section id="assortment" class="home-screen home-section home-categories" aria-labelledby="home-categories-title">
@@ -64,11 +57,11 @@
   <section class="home-screen home-section home-products" aria-labelledby="home-products-title">
     <div class="section-heading">
       <div><p class="section-kicker">Продукция</p><h2 id="home-products-title">{% if home_sections.products.title %}{{ home_sections.products.title }}{% elif featured_products %}Рекомендуемые товары{% else %}Скоро в каталоге{% endif %}</h2>{% if home_sections.products.body %}<div class="rich-copy">{{ home_sections.products.body|linebreaks }}</div>{% endif %}</div>
-      <a class="text-link" href="#assortment">Все категории <span aria-hidden="true">↗</span></a>
+      <a class="text-link" href="#assortment">Все категории <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
     </div>
     {% if featured_products %}
       <div class="product-grid">
-        {% for product in featured_products|slice:":2" %}{% include "partials/product-card.html" with product=product compact=True %}{% endfor %}
+        {% for product in featured_products|slice:":2" %}{% include "partials/product-card.html" with product=product compact=True recommended=True %}{% endfor %}
       </div>
     {% else %}
       <div class="empty-state-feature" role="status">
@@ -83,13 +76,13 @@
       <div class="home-about-intro">
         <p class="section-kicker">О компании</p><h2 id="home-about-title">{{ home_sections.about.title|default:"Познакомьтесь с Рыбёшкой" }}</h2>
         <div class="home-about-body">
-          {% if about_summary %}<div>{{ about_summary|truncatechars:80|linebreaks }}</div>{% else %}<p>Сведения о компании готовятся к публикации.</p>{% endif %}
-          <a class="text-link" href="{% url 'content:about' %}">О компании <span aria-hidden="true">↗</span></a>
+          {% if about_summary %}<div>{{ about_summary|linebreaks }}</div>{% else %}<p>Сведения о компании готовятся к публикации.</p>{% endif %}
+          <a class="text-link" href="{% url 'content:about' %}">О компании <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
         </div>
       </div>
       {% if advantages %}
         <ul class="benefit-list">
-          {% for advantage in advantages|slice:":4" %}<li><span class="benefit-number">0{{ forloop.counter }}</span>{% if advantage.title %}<h3>{{ advantage.title }}</h3>{% endif %}{% if advantage.description %}<div>{{ advantage.description|truncatechars:50|linebreaks }}</div>{% endif %}</li>{% endfor %}
+          {% for advantage in advantages|slice:":4" %}<li><span class="benefit-number">0{{ forloop.counter }}</span>{% if advantage.title %}<h3>{{ advantage.title }}</h3>{% endif %}{% if advantage.description %}<div>{{ advantage.description|linebreaks }}</div>{% endif %}</li>{% endfor %}
         </ul>
       {% else %}
         <div class="about-note"><p>{% if about_summary %}Подтверждённые преимущества пока не добавлены.{% else %}Сведения о компании и преимущества будут добавлены после получения материалов.{% endif %}</p></div>
@@ -98,10 +91,10 @@
   </section>
 
   <section id="request-steps" class="home-screen home-section request-steps" aria-labelledby="request-steps-title">
-    <div class="section-heading"><div><p class="section-kicker">Ваш заказ</p><h2 id="request-steps-title">{{ home_sections.steps.title|default:"Как проходит заявка" }}</h2></div><a class="text-link" href="{% url 'inquiries:wholesale' %}">Оптовый запрос <span aria-hidden="true">↗</span></a></div>
+    <div class="section-heading"><div><p class="section-kicker">Ваш заказ</p><h2 id="request-steps-title">{{ home_sections.steps.title|default:"Как проходит заявка" }}</h2></div><a class="text-link" href="{% url 'inquiries:wholesale' %}">Оптовый запрос <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a></div>
     {% if home_sections.steps.body %}<div class="rich-copy">{{ home_sections.steps.body|linebreaks }}</div>{% endif %}
     {% if home_steps %}<ol class="steps-list">
-      {% for step in home_steps|slice:":3" %}<li><span class="step-number">0{{ forloop.counter }}</span>{% if step.title %}<h3>{{ step.title }}</h3>{% endif %}{% if step.body %}<div>{{ step.body|truncatechars:110|linebreaks }}</div>{% endif %}</li>{% endfor %}
+      {% for step in home_steps|slice:":3" %}<li><span class="step-number">0{{ forloop.counter }}</span>{% if step.title %}<h3>{{ step.title }}</h3>{% endif %}{% if step.body %}<div>{{ step.body|linebreaks }}</div>{% endif %}</li>{% endfor %}
     </ol>{% else %}<ol class="steps-list">
       <li><span class="step-number">01</span><h3>Выберите товары</h3><p>Укажите желаемый вес в килограммах.</p></li>
       <li><span class="step-number">02</span><h3>Оставьте контакты</h3><p>Выберите доставку или самовывоз и отправьте заявку.</p></li>
@@ -111,8 +104,17 @@
 
   <section class="home-screen home-section home-links" aria-label="Получение и связь">
     <div class="home-links-grid">
-      <a class="home-link-panel" href="{% url 'content:delivery' %}"><span class="home-link-kicker">Получение</span><strong>{{ delivery_section.title|default:"Доставка и самовывоз" }}</strong>{% if delivery_section.body %}<span>{{ delivery_section.body|linebreaksbr }}</span>{% else %}<span>Стоимость и срок доставки согласуются после заявки</span>{% endif %}<span class="home-link-arrow" aria-hidden="true">↗</span></a>
-      <a class="home-link-panel" href="{% url 'content:contacts' %}"><span class="home-link-kicker">Связь</span><strong>{{ home_sections.contacts.title|default:"Контакты" }}</strong><span>{% if contact_summary %}{{ contact_summary|linebreaksbr }}{% else %}Контактные сведения появятся после подтверждения{% endif %}</span><span class="home-link-arrow" aria-hidden="true">↗</span></a>
+      <a class="home-link-panel" href="{% url 'content:delivery' %}"><span class="home-link-kicker">Получение</span><strong>{{ delivery_section.title|default:"Доставка и самовывоз" }}</strong>{% if delivery_section.body %}<span>{{ delivery_section.body|linebreaksbr }}</span>{% else %}<span>Стоимость и срок доставки согласуются после заявки</span>{% endif %}<span class="home-link-arrow" aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
+      <a class="home-link-panel" href="{% url 'content:contacts' %}"><span class="home-link-kicker">Связь</span><strong>{{ home_sections.contacts.title|default:"Контакты" }}</strong><span>{% if contact_summary %}{{ contact_summary|linebreaksbr }}{% else %}Контактные сведения появятся после подтверждения{% endif %}{% if site_settings.phone_primary %}<br>{{ site_settings.phone_primary }}{% endif %}{% if site_settings.email %}<br>{{ site_settings.email }}{% endif %}{% if site_settings.address %}<br>{{ site_settings.address }}{% endif %}{% if site_settings.opening_hours %}<br>{{ site_settings.opening_hours|linebreaksbr }}{% endif %}</span><span class="home-link-arrow" aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
     </div>
+    {% if site_settings.whatsapp_url or site_settings.telegram_url or site_settings.vk_url %}<nav class="site-social-links" aria-label="Мы в соцсетях">
+      {% if site_settings.whatsapp_url %}<a href="{{ site_settings.whatsapp_url }}" target="_blank" rel="noopener noreferrer">WhatsApp</a>{% endif %}
+      {% if site_settings.telegram_url %}<a href="{{ site_settings.telegram_url }}" target="_blank" rel="noopener noreferrer">Telegram</a>{% endif %}
+      {% if site_settings.vk_url %}<a href="{{ site_settings.vk_url }}" target="_blank" rel="noopener noreferrer">ВКонтакте</a>{% endif %}
+    </nav>{% endif %}
   </section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'js/home-scroll.js' %}?v=2026-10-11-1" defer></script>
 {% endblock %}

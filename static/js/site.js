@@ -62,7 +62,7 @@
   navigation.addEventListener("click", (event) => {
     if (event.target.closest("a")) closeMenu({ immediate: true });
   });
-  window.matchMedia("(min-width: 901px)").addEventListener("change", (event) => {
+  window.matchMedia("(min-width: 1101px)").addEventListener("change", (event) => {
     if (event.matches) {
       animation?.cancel();
       closing = false;
@@ -83,7 +83,7 @@
 (() => {
   const menus = [...document.querySelectorAll(".assortment-menu")];
   if (!menus.length) return;
-  const desktopHover = window.matchMedia("(min-width: 901px) and (hover: hover) and (pointer: fine)");
+  const desktopHover = window.matchMedia("(min-width: 1101px) and (hover: hover) and (pointer: fine)");
 
   function closeMenus({ restoreFocus = false } = {}) {
     menus.forEach((menu) => {

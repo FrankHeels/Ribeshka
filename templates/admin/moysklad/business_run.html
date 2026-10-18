@@ -1,0 +1,7 @@
+<div class="moysklad-run-summary">
+  <div class="moysklad-summary-heading"><h3>Последняя проверка</h3>{% if run %}<span class="backoffice-status-pill">{{ run.status }}</span>{% endif %}</div>
+  {% if run %}
+    <p class="backoffice-help moysklad-run-date">Начало: {{ run.started_at|date:"d.m.Y H:i" }}{% if run.completed_at %}<br>Завершена: {{ run.completed_at|date:"d.m.Y H:i" }}{% endif %}</p>
+    <dl class="moysklad-run-counters"><div><dt>Обработано</dt><dd>{{ run.processed }} из {{ run.total }}</dd></div><div><dt>Ошибок</dt><dd>{{ run.errors }}</dd></div></dl>
+  {% else %}<p class="backoffice-help">Проверок пока нет.</p>{% endif %}
+</div>

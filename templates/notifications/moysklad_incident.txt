@@ -1,0 +1,12 @@
+Требуется проверка интеграции МойСклад.
+
+Область: {{ notification.scope }}
+Причина: {{ notification.code }}
+Время первого обнаружения: {{ notification.created_at|date:"d.m.Y H:i:s T" }}
+{% if notification.object_ids %}
+Объекты:
+{% for identifier in notification.object_ids %}- {{ identifier }}
+{% endfor %}{% endif %}
+Диагностика: {{ notification.diagnostics_url }}
+
+Повторные наблюдения этого сбоя объединяются в один инцидент.

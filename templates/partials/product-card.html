@@ -1,5 +1,6 @@
 <article class="product-card">
   <a class="product-card-image" href="{% url 'catalog:product' product.slug %}">
+    {% if recommended %}<span class="product-popular-badge">Хит</span>{% endif %}
     {% if product.primary_photo %}
       <img src="{{ product.primary_photo.url }}" alt="{{ product.primary_photo.alt_text|default:product.name }}" loading="lazy" decoding="async" width="640" height="800">
     {% else %}
@@ -10,5 +11,6 @@
     <h3><a href="{% url 'catalog:product' product.slug %}">{{ product.name }}</a></h3>
     {% if product.short_description and not compact %}<p>{{ product.short_description }}</p>{% endif %}
     {% if product.price_per_kg %}<p class="product-card-price">{{ product.price_per_kg|floatformat:2 }} ₽ <span>за кг</span></p>{% endif %}
+    <p class="product-card-note">{% if product.price_per_kg %}Ориентировочная цена. Наличие уточняйте у менеджера.{% else %}Цену и наличие уточняйте у менеджера.{% endif %}</p>
   </div>
 </article>

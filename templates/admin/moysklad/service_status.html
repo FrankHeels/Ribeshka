@@ -1,0 +1,9 @@
+<div class="moysklad-service-status{% if service.attention %} moysklad-service-status-warning{% endif %}">
+{% if service.attention %}
+  <p class="backoffice-status-pill">Требует внимания</p>
+  <ul class="moysklad-service-messages">{% for message in service.messages %}<li>{{ message }}</li>{% endfor %}</ul>
+{% else %}
+  <p class="backoffice-status-pill">Включено</p>
+  <p class="backoffice-help">В сохранённых данных проблем не обнаружено.</p>
+{% endif %}
+</div>

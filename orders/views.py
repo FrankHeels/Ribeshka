@@ -34,16 +34,14 @@ def checkout(request):
 @public_form_database_fallback("orders:cart", "Вернуться к корзине")
 @require_http_methods(["GET", "HEAD"])
 def success(request, token):
-    order = Order.objects.filter(success_token=token).only("order_number").first()
-    if order is None:
+    if not Order.objects.filter(success_token=token).exists():
         raise Http404("Заявка не найдена")
     response = render(
         request,
         "orders/success.html",
         {
-            "page_title": "Заявка принята",
+            "page_title": "Заявка получена",
             "meta_robots": "noindex, nofollow",
-            "order_number": order.order_number,
         },
     )
     response["X-Robots-Tag"] = "noindex, nofollow"

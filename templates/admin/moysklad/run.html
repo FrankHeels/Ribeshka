@@ -1,0 +1,4 @@
+{% if run %}
+<p><strong>{{ run.kind }}: {{ run.status }}</strong> · {{ run.reason }} · {{ run.started_at|date:"d.m.Y H:i:s" }}{% if run.completed_at %} — {{ run.completed_at|date:"d.m.Y H:i:s" }}{% endif %}</p>
+<p>Обработано {{ run.processed }} из {{ run.total }}; обновлено {{ run.updated }}; пропущено {{ run.skipped }}; ошибок {{ run.errors }}.{% if run.error_code %} Код: {{ run.error_code }}.{% endif %}</p>
+{% else %}<p>Запусков пока нет.</p>{% endif %}

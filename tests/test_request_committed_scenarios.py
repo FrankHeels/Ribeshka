@@ -162,7 +162,7 @@ class CommittedRequestScenarios(TransactionTestCase):
 
     # Успешная оптовая отправка создаёт одну заявку с подписанной редакцией,
     # компанией и email, пустым need и одной outbox-записью; после commit приходит
-    # один сигнал. Страница успеха показывает номер, но скрывает контакты.
+    # один сигнал. Страница успеха показывает общий текст без номера заявки.
     def test_wholesale_commit_persists_one_outbox_and_one_post_commit_notify(self):
         submission = self.wholesale_submission(self.client)
         data = self.wholesale_data(submission)
@@ -182,7 +182,10 @@ class CommittedRequestScenarios(TransactionTestCase):
 
         success = self.get(self.client, response.url)
         self.assertEqual(success.status_code, 200)
-        self.assertContains(success, inquiry.inquiry_number)
+        self.assertContains(success, "Заявка принята. Менеджер свяжется с вами")
+        self.assertNotContains(success, inquiry.inquiry_number)
+        self.assertNotIn("inquiry", success.context)
+        self.assertNotIn("inquiry_number", success.context)
         self.assertNotContains(success, f"Committed Wholesale Contact {self.marker}")
         self.assertNotContains(success, "+7 (921) 555-56-78")
 

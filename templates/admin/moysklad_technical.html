@@ -1,0 +1,73 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div class="backoffice-dashboard moysklad-dashboard">
+  <header class="backoffice-page-intro">
+    <p class="backoffice-eyebrow">Интеграция · технический администратор</p><h1>Технические настройки МойСклад</h1>
+    <p>Состояние из локальной базы. Действия выполняются в фоне; остатки не ограничивают заявки.</p>
+    <p><a class="backoffice-content-link" href="{% url 'admin:moysklad_status' %}">Открыть рабочую страницу МойСклад</a></p>
+    {% if configured %}<p class="backoffice-help">Аккаунт: {{ account_id }} · Окружение: {{ environment }}</p>{% endif %}
+  </header>
+  {% if not configured %}
+    <section class="backoffice-card"><h2>Подключение не настроено</h2><p>Для включения обмена технический администратор должен проверить серверную конфигурацию.</p><p class="backoffice-help">Код: {{ configuration_error }}. Цены сайта можно изменять в карточках товаров.</p></section>
+  {% else %}
+    <section class="backoffice-card" aria-labelledby="exchange-state-title">
+      <h2 id="exchange-state-title">Исполнитель и доступ</h2>
+      <dl class="moysklad-facts">
+        <dt>Последний heartbeat</dt><dd>{{ state.heartbeat_at|date:"d.m.Y H:i:s"|default:"Ещё не получен" }}{% if state.heartbeat_at %} ({{ state.heartbeat_at|timesince }} назад){% endif %}<p class="backoffice-help">Последний сигнал фонового исполнителя. Если сигнала нет более 2 минут, проверьте его работу.</p></dd>
+        <dt>Доступ API</dt><dd>{% if api.access_error_code %}Ошибка: {{ api.access_error_code }}{% elif access_check.status == "done" %}Последняя проверка завершена{% elif access_check %}Проверка: {{ access_check.label }}{% else %}Ещё не проверен{% endif %}{% if access_check.completed_at %} · {{ access_check.completed_at|date:"d.m.Y H:i:s" }}{% endif %}<p class="backoffice-help">Результат последней проверки доступа. Прошлый успех не гарантирует доступ сейчас.</p></dd>
+        <dt>Пауза API до</dt><dd>{{ api.paused_until|date:"d.m.Y H:i:s"|default:"Нет" }}<p class="backoffice-help">Запросы к аккаунту отложены до этого времени после ограничения API; затем исполнитель повторит их.</p></dd>
+        <dt>Пауза передачи аккаунта</dt><dd>{% if api.export_paused %}Да — требуется проверка лимита/доступа{% else %}Нет{% endif %}<p class="backoffice-help">Останавливает передачу заявок всего аккаунта до проверки ограничения или доступа.</p></dd>
+        <dt>UUID вебхука</dt><dd>{{ state.webhook_id|default:"Не зарегистрирован" }}<p class="backoffice-help">Идентификатор регистрации вебхука в МойСклад. Это не секретный URL приёмника.</p></dd>
+        <dt>Приём / обработка вебхука</dt><dd>{{ state.webhook_received_at|date:"d.m.Y H:i:s"|default:"—" }} / {{ state.webhook_processed_at|date:"d.m.Y H:i:s"|default:"—" }}<p class="backoffice-help">Первое время — уведомление получено и сохранено в очереди; второе — обработано исполнителем. Приём ещё не означает обновление цены.</p></dd>
+        <dt>Последняя успешная полная сверка цен</dt><dd>{{ state.prices_reconciled_at|date:"d.m.Y H:i:s"|default:"Ещё не завершена" }}<p class="backoffice-help">Завершён полный проход по связанным товарам. Отдельное изменение цены по вебхуку эту дату не обновляет.</p></dd>
+        <dt>Следующая сверка цен</dt><dd>{{ state.prices_next_at|date:"d.m.Y H:i:s"|default:"—" }}<p class="backoffice-help">Плановое время запуска; для выполнения нужен работающий исполнитель. Это не подтверждение успешной сверки.</p></dd>
+      </dl>
+      {% if perms.integrations.manage_moysklad %}<form method="post" action="{% url 'admin:moysklad_action' 'check' %}" class="backoffice-shortcuts">{% csrf_token %}<button class="button button-secondary" type="submit">Проверить подключение в фоне</button></form>{% endif %}
+      <p class="backoffice-help">Вебхук регистрирует технический администратор после проверки серверной конфигурации.</p>
+    </section>
+    <section class="backoffice-card" aria-labelledby="streams-title">
+      <h2 id="streams-title">Потоки обмена</h2>
+      <div class="moysklad-streams">
+        {% for stream in streams %}<div class="moysklad-stream"><div><span>{{ stream.label }}: <strong>{{ stream.enabled|yesno:"включён,выключен" }}</strong></span><p class="backoffice-help">{{ stream.help }}</p></div>
+          {% if perms.integrations.manage_moysklad %}<form method="post" action="{% url 'admin:moysklad_action' 'stream' %}" class="backoffice-shortcuts">{% csrf_token %}<input type="hidden" name="stream" value="{{ stream.key }}"><input type="hidden" name="enabled" value="{{ stream.enabled|yesno:'no,yes' }}"><button class="button button-secondary" type="submit">{% if stream.enabled %}Выключить{% else %}Включить{% endif %}: {{ stream.label }}</button></form>{% endif %}
+        </div>{% endfor %}
+      </div>
+      <p>Начало регистрации новых заявок: {{ state.export_started_at|date:"d.m.Y H:i:s"|default:"Ещё не запущена" }}.</p>
+      <p class="backoffice-help">Нижняя граница регистрации: заявки до этой даты автоматически не включаются в передачу. Повторное одобрение согласия сохраняет исходную дату.</p>
+      <dl class="moysklad-facts">
+        <dt>Одобренная редакция согласия</dt><dd>{% if approved_consent %}{{ approved_consent.identifier }}{% else %}Ещё не одобрена{% endif %}<p class="backoffice-help">Хеш архивного текста, одобренного для новых заявок. При изменении исходного текста требуется отдельное одобрение новой редакции.</p></dd>
+        <dt>Дата регистрации редакции</dt><dd>{{ approved_consent.registered_at|date:"d.m.Y H:i:s"|default:"—" }}<p class="backoffice-help">Когда этот текст впервые сохранён в архиве; это не дата начала экспорта.</p></dd>
+      </dl>
+      {% if perms.integrations.manage_moysklad %}
+        <form method="post" action="{% url 'admin:moysklad_action' 'start_export' %}">
+          {% csrf_token %}
+          <div class="form-row"><label><input type="checkbox" name="confirm" value="yes" required aria-describedby="export-approval-note"> {% if state.export_started_at %}Одобрить текущую редакцию согласия для новых заявок и включить их передачу. Исходная дата начала регистрации сохранится.{% else %}Одобрить текущую редакцию согласия для передачи новых заявок и начать их регистрацию с текущего момента.{% endif %}</label></div>
+          <div class="backoffice-shortcuts"><button class="button button-primary" type="submit">{% if state.export_started_at %}Одобрить текущую редакцию для новых заявок{% else %}Одобрить согласие и начать передачу{% endif %}</button></div>
+        </form>
+      {% endif %}
+      <p id="export-approval-note" class="backoffice-help">Одобрение действует для новых заявок. Исторические заявки и ранее не разрешённые передачи автоматически не отправляются; их восстановление требует отдельного разбора.</p>
+      <p class="backoffice-help">Включение потока передачи и одобрение редакции согласия — отдельные настройки. Повторное включение продолжает разрешённую очередь.</p>
+    </section>
+    <section class="backoffice-stat-grid" aria-label="Очереди и каталог">
+      <div class="backoffice-stat-card"><span>Необработанные вебхуки</span><strong>{{ inbox_count }}</strong><small>Самый старый: {% if inbox_oldest %}{{ inbox_oldest|timesince }} назад{% else %}—{% endif %}</small></div>
+      <div class="backoffice-stat-card"><span>Задачи цен</span><strong>{{ price_count }}</strong><small>Самая старая задача: {% if price_oldest %}{{ price_oldest|timesince }} назад{% else %}—{% endif %}</small><small>Товаров с ожидающей ценой: {{ pending_price_count }}; {% if pending_price_oldest %}старейшее ожидание {{ pending_price_oldest|timesince }}{% else %}ожиданий нет{% endif %}</small><p class="backoffice-help">Число задач и число товаров различаются: повторные события одного товара могут объединяться.</p></div>
+      <div class="backoffice-stat-card"><span>Заявки в очереди и обработке</span><strong>{{ export_count }}</strong><small>Самая старая: {% if export_oldest %}{{ export_oldest|timesince }} назад{% else %}—{% endif %}</small><small>Отдельно требуют разбора: {{ export_review_count }}</small></div>
+      <a class="backoffice-stat-card" href="{% url 'admin:moysklad_candidates' %}"><span>Кандидаты</span><strong>{{ candidate_count }}</strong><small>Блокировок карточек: {{ blocked_count }}</small></a>
+    </section>
+    <section class="backoffice-card"><h2>Сверка с МойСклад</h2><div class="backoffice-shortcuts">
+      {% if perms.integrations.sync_moysklad_catalog %}<form method="post" action="{% url 'admin:moysklad_action' 'catalog' %}">{% csrf_token %}<button class="button button-primary" type="submit">Сверить каталог с МойСклад</button></form>{% endif %}
+      {% if perms.integrations.reconcile_moysklad_prices %}<form method="post" action="{% url 'admin:moysklad_action' 'prices' %}">{% csrf_token %}<button class="button button-secondary" type="submit">Сверить цены связанных товаров</button></form>{% endif %}
+      <a class="button button-secondary" href="{% url 'admin:moysklad_candidates' %}">Открыть кандидатов</a>
+    </div><p class="backoffice-help">Обновите страницу после обработки задания. Новый ручной запуск требуется после ошибки ручного прохода.</p>
+    <h3>Последняя полная сверка цен</h3>{% include "admin/moysklad/run.html" with run=last_price_run %}
+    <h3>Последний ручной проход каталога</h3>{% include "admin/moysklad/run.html" with run=last_catalog_run %}
+    <details><summary>Последние запуски</summary>{% for run in recent_runs %}{% include "admin/moysklad/run.html" %}{% empty %}<p>Запусков пока нет.</p>{% endfor %}</details></section>
+    <section class="backoffice-card"><h2>Опубликованные карточки без связи или с блокировкой: {{ audit_count }}</h2><p class="backoffice-help">Проверьте оформление и источник каждой карточки. Снятие блокировки выполняется отдельно после восстановления источника.</p>
+      <ul class="backoffice-dashboard-list">{% for product in audit_products %}<li><a href="{% url 'admin:catalog_product_change' product.pk %}">{{ product.name }}</a> — {% if product.integration_block_reason %}заблокирована{% else %}нет связи{% endif %}</li>{% empty %}<li>Таких карточек нет.</li>{% endfor %}</ul>
+      {% if audit_count > 30 %}<p><a href="{% url 'admin:catalog_product_changelist' %}?moysklad=audit">Все карточки для проверки</a></p>{% endif %}
+    </section>
+    <section class="backoffice-card"><h2>Открытые инциденты: {{ incident_count }}</h2><ul class="backoffice-dashboard-list">{% for incident in incidents %}<li><strong>{{ incident.code }}</strong> · {{ incident.scope }} · открыт {{ incident.opened_at|date:"d.m.Y H:i" }} · последнее наблюдение {{ incident.last_seen_at|date:"d.m.Y H:i" }}</li>{% empty %}<li>Открытых инцидентов нет.</li>{% endfor %}</ul>{% if incident_count > 30 %}<p><a href="{% url 'admin:integrations_moyskladincident_changelist' %}">Все инциденты</a></p>{% endif %}</section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,6 +1,8 @@
 import secrets
 import uuid
 
+from django.conf import settings
+
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
@@ -32,6 +34,15 @@ class Inquiry(models.Model):
     submission_key = models.UUIDField("Ключ отправки", default=uuid.uuid4, unique=True, editable=False)
     success_token = models.UUIDField("Токен страницы успеха", default=uuid.uuid4, unique=True, editable=False)
     created_at = models.DateTimeField("Создан", auto_now_add=True)
+    internal_notes = models.TextField("Заметка менеджера", blank=True)
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Ответственный менеджер",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="assigned_wholesale_inquiries",
+    )
 
     class Meta:
         verbose_name = "оптовый запрос"
@@ -53,6 +64,16 @@ class Inquiry(models.Model):
             errors["phone"] = "Укажите телефон."
         if not self.privacy_consent:
             errors["privacy_consent"] = "Для создания запроса требуется согласие на обработку данных."
+        if self.assigned_to_id:
+            previous_assignee_id = (
+                type(self).objects.filter(pk=self.pk).values_list("assigned_to_id", flat=True).first()
+                if self.pk
+                else None
+            )
+            if self.assigned_to_id != previous_assignee_id and (
+                not self.assigned_to.is_active or not self.assigned_to.is_staff
+            ):
+                errors["assigned_to"] = "Ответственным можно назначить только активного сотрудника сайта."
         if self._state.adding and self.privacy_consent_revision_id is None:
             errors["privacy_consent_revision"] = "Для нового запроса требуется редакция принятого согласия."
         if errors:

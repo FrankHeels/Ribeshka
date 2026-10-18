@@ -1,0 +1,44 @@
+{% extends "admin/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }} | {{ site_title }}{% endblock %}
+{% block branding %}{% include "unfold/helpers/site_branding.html" %}{% endblock %}
+
+{% block content %}
+  <div class="backoffice-dashboard">
+    <header class="backoffice-page-intro">
+      <p class="backoffice-eyebrow">FishSite</p>
+      <h1>Добро пожаловать в управление сайтом</h1>
+      <p>Здесь можно обновить каталог, тексты сайта и обработать поступившие заявки.</p>
+    </header>
+
+    <div class="backoffice-stat-grid">
+      {% if has_retail_access %}<a class="backoffice-stat-card" href="{% url 'admin:orders_order_changelist' %}"><span>Непросмотренные розничные заявки</span><strong>{{ unseen_retail_count }}</strong></a>{% endif %}
+      {% if has_wholesale_access %}<a class="backoffice-stat-card" href="{% url 'admin:inquiries_inquiry_changelist' %}"><span>Оптовые запросы — всего</span><strong>{{ wholesale_count }}</strong></a>{% endif %}
+      {% if has_catalog_access %}<a class="backoffice-stat-card" href="{% url 'admin:catalog_product_changelist' %}?photos=no"><span>Опубликованные товары без фото</span><strong>{{ published_products_without_photo }}</strong></a>{% endif %}
+    </div>
+
+    <div class="backoffice-shortcuts">
+      {% if has_catalog_access %}<a class="button button-primary" href="{% url 'admin:catalog_product_changelist' %}">Открыть каталог</a>{% endif %}
+      {% if has_retail_access %}<a class="button button-secondary" href="{% url 'admin:orders_order_changelist' %}">Розничные заявки</a>{% endif %}
+      {% if has_wholesale_access %}<a class="button button-secondary" href="{% url 'admin:inquiries_inquiry_changelist' %}">Оптовые запросы</a>{% endif %}
+      {% if has_content_access %}<a class="button button-secondary" href="{% url 'admin:content_contentpage_changelist' %}">Содержание сайта</a>{% endif %}
+    </div>
+
+    <div class="backoffice-recent-grid">
+      {% if has_retail_access %}
+        <section class="backoffice-card">
+          <h2>Последние розничные заявки</h2>
+          {% if recent_retail_requests %}<ul>{% for request_row in recent_retail_requests %}<li><a href="{% url 'admin:orders_order_change' request_row.pk %}">{{ request_row.order_number }}</a><span>{{ request_row.created_at|date:"d.m.Y H:i" }}</span><span>{% if request_row.viewed_at %}Просмотрена{% else %}Не просмотрена{% endif %}</span></li>{% endfor %}</ul>{% else %}<p>Заявок пока нет.</p>{% endif %}
+        </section>
+      {% endif %}
+      {% if has_wholesale_access %}
+        <section class="backoffice-card">
+          <h2>Последние оптовые запросы</h2>
+          {% if recent_wholesale_requests %}<ul>{% for request_row in recent_wholesale_requests %}<li><a href="{% url 'admin:inquiries_inquiry_change' request_row.pk %}">{{ request_row.inquiry_number }}</a><span>{{ request_row.created_at|date:"d.m.Y H:i" }}</span></li>{% endfor %}</ul>{% else %}<p>Запросов пока нет.</p>{% endif %}
+        </section>
+      {% endif %}
+    </div>
+    {% if has_moysklad_access %}<section class="backoffice-card backoffice-integration-note"><h2>МойСклад</h2><p>{% if moysklad_configuration_error %}Подключение требует проверки технического администратора.{% elif moysklad_configured %}Состояние товаров, цен и передачи заявок доступно на странице обмена.{% else %}Подключение не настроено.{% endif %} Цены товаров можно исправить в карточке товара; остатки сайт не использует.</p><a href="{% url 'admin:moysklad_status' %}">Открыть МойСклад</a></section>{% endif %}
+  </div>
+{% endblock %}

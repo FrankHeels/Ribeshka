@@ -5,6 +5,11 @@ from django.db import models
 from django.db.models import Q
 from django.db.models.query import QuerySet
 
+from catalog.models import Product
+from catalog.validators import validate_site_image
+
+from .validators import validate_site_link
+
 
 CONTENT_PAGE_KEYS = ("home", "about", "delivery", "contacts", "privacy")
 
@@ -146,6 +151,9 @@ HOME_SECTION_KEYS = (
     "step_3",
     "delivery",
     "contacts",
+    "hero_value_1",
+    "hero_value_2",
+    "hero_value_3",
 )
 
 HOME_SECTION_LABELS = {
@@ -163,6 +171,9 @@ HOME_SECTION_LABELS = {
     "step_3": "Шаг 3",
     "delivery": "Доставка",
     "contacts": "Контакты",
+    "hero_value_1": "Преимущество на обложке 1",
+    "hero_value_2": "Преимущество на обложке 2",
+    "hero_value_3": "Преимущество на обложке 3",
     "lead": "Вступление",
 }
 
@@ -177,6 +188,8 @@ class ContentSection(models.Model):
     key = models.SlugField("Технический ключ", max_length=80)
     title = models.CharField("Заголовок блока", max_length=180, blank=True)
     body = models.TextField("Текст", blank=True)
+    image = models.ImageField("Изображение блока", upload_to="content/sections/", blank=True, validators=[validate_site_image])
+    image_alt = models.CharField("Описание изображения", max_length=240, blank=True)
     display_order = models.PositiveSmallIntegerField("Порядок показа", default=0)
     updated_at = models.DateTimeField("Изменена", auto_now=True)
 
@@ -194,6 +207,8 @@ class ContentSection(models.Model):
 
     def clean(self):
         super().clean()
+        if self.image and not self.image_alt.strip():
+            raise ValidationError({"image_alt": "Добавьте краткое описание изображения для пользователей экранного диктора."})
         using = self._state.db or "default"
         if self.page_id:
             page_key = ContentPage.objects.using(using).filter(pk=self.page_id).values_list("key", flat=True).first()
@@ -203,6 +218,91 @@ class ContentSection(models.Model):
             previous = type(self).objects.using(using).filter(pk=self.pk).values_list("page_id", "key").first()
             if previous is not None and (self.page_id, self.key) != previous:
                 raise ValidationError("Страницу и технический ключ существующего блока менять нельзя.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class SingletonModel(models.Model):
+    """Base for editable site settings whose public route expects one row."""
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Настройки сайта нельзя удалять.")
+
+
+class SiteSettings(SingletonModel):
+    phone_primary = models.CharField("Основной телефон", max_length=40, blank=True)
+    phone_secondary = models.CharField("Дополнительный телефон", max_length=40, blank=True)
+    email = models.EmailField("Электронная почта", blank=True)
+    address = models.CharField("Адрес", max_length=240, blank=True)
+    opening_hours = models.TextField("График работы", blank=True)
+    whatsapp_url = models.URLField("Ссылка WhatsApp", max_length=500, blank=True, validators=[validate_site_link])
+    telegram_url = models.URLField("Ссылка Telegram", max_length=500, blank=True, validators=[validate_site_link])
+    vk_url = models.URLField("Ссылка ВКонтакте", max_length=500, blank=True, validators=[validate_site_link])
+    footer_copy = models.TextField("Текст в подвале сайта", blank=True)
+    footer_notice = models.CharField("Подпись внизу сайта", max_length=240, blank=True)
+
+    class Meta:
+        verbose_name = "контакты и общие настройки"
+        verbose_name_plural = "контакты и общие настройки"
+        constraints = [models.CheckConstraint(condition=Q(pk=1), name="site_settings_singleton_pk")]
+
+    def __str__(self):
+        return "Контакты и общие настройки"
+
+
+class HomepageRecommendation(models.Model):
+    class Slot(models.IntegerChoices):
+        FIRST = 1, "Рекомендуемый товар 1"
+        SECOND = 2, "Рекомендуемый товар 2"
+
+    slot = models.PositiveSmallIntegerField("Позиция", choices=Slot.choices, unique=True)
+    product = models.ForeignKey(
+        Product,
+        verbose_name="Товар",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="homepage_recommendation_slots",
+    )
+
+    class Meta:
+        verbose_name = "рекомендуемые товары"
+        verbose_name_plural = "рекомендуемые товары"
+        ordering = ("slot",)
+        constraints = [
+            models.CheckConstraint(condition=Q(slot__in=(1, 2)), name="homepage_recommendation_slot_valid"),
+            models.UniqueConstraint(
+                fields=("product",),
+                condition=Q(product__isnull=False),
+                name="homepage_recommendation_product_uniq",
+            ),
+        ]
+
+    def __str__(self):
+        return self.get_slot_display()
+
+    def clean(self):
+        super().clean()
+        if not self.product_id:
+            return
+        using = self._state.db or "default"
+        current_id = None
+        if self.pk:
+            current_id = type(self).objects.using(using).filter(pk=self.pk).values_list("product_id", flat=True).first()
+        if current_id == self.product_id:
+            return
+        if not Product.objects.using(using).filter(pk=self.product_id, is_published=True).exists():
+            raise ValidationError({"product": "Для новой рекомендации выберите опубликованный товар."})
 
     def save(self, *args, **kwargs):
         self.full_clean()

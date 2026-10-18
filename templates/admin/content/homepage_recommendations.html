@@ -1,0 +1,32 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+  <div class="backoffice-dashboard">
+    <header class="backoffice-page-intro">
+      <p class="backoffice-eyebrow">Главная страница</p>
+      <h1>{{ title }}</h1>
+      <p>Выберите до двух разных опубликованных товаров для секции «Рекомендуемые товары» на главной странице. Только здесь они показываются с меткой «Хит». Если ранее выбранный товар скрыт, он останется в этом поле, но на сайте показываться не будет.</p>
+    </header>
+    {% if messages %}
+      <ul class="messagelist">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if form %}
+      <form method="post" class="backoffice-card">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="errornote">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+          <div class="form-row{% if field.errors %} errors{% endif %}">
+            {{ field.label_tag }}
+            {{ field }}
+            {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+            {% for error in field.errors %}<p class="errornote">{{ error }}</p>{% endfor %}
+          </div>
+        {% endfor %}
+        <div class="submit-row"><button class="button button-primary" type="submit">{{ save_label }}</button></div>
+      </form>
+    {% else %}
+      <div class="backoffice-card" role="status">Рекомендуемые товары сохранены.</div>
+    {% endif %}
+  </div>
+{% endblock %}

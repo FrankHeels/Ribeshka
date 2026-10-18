@@ -3,7 +3,6 @@
   <header class="page-heading">
     <p class="section-kicker">Категория</p>
     <h1>{{ category.name }}</h1>
-    {% if category.description %}<p>{{ category.description }}</p>{% endif %}
   </header>
   {% if catalog_error %}<div class="notice notice-error" role="alert">{{ catalog_error }}</div>{% endif %}
   {% if products %}

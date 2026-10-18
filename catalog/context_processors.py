@@ -8,7 +8,7 @@ def navigation_categories(request):
         if request.path_info.startswith("/admin/") or request.path_info == "/sitemap.xml":
             return {}
         categories = (
-            Category.objects.filter(products__is_published=True)
+            Category.objects.filter(products__is_published=True, products__integration_block_reason="")
             .order_by("display_order", "name", "pk")
             .distinct()
         )

@@ -16,7 +16,6 @@ from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
 
-from catalog.models import Category, Product
 
 
 class FlatCategoryMigrationTests(TransactionTestCase):
@@ -26,7 +25,7 @@ class FlatCategoryMigrationTests(TransactionTestCase):
     # Создаёт корневую и вложенную категории с заполненными полями и товар во вложенной;
     # после миграции ожидаются две сохранённые категории, прежние данные дочерней категории,
     # сохранённая ссылка товара на неё и отсутствие столбца parent_id в таблице категорий.
-    # Блок finally в любом случае оставляет схему на целевой миграции.
+    # Блок finally в любом случае возвращает схему ко всем текущим leaf nodes.
     def test_existing_nested_categories_become_independent_without_losing_products(self):
         executor = MigrationExecutor(connection)
         executor.migrate([self.migrate_from])
@@ -50,17 +49,22 @@ class FlatCategoryMigrationTests(TransactionTestCase):
                 price_per_kg=Decimal("100.00"),
             )
 
-            MigrationExecutor(connection).migrate([self.migrate_to])
+            executor = MigrationExecutor(connection)
+            executor.migrate([self.migrate_to])
+            migrated_apps = executor.loader.project_state([self.migrate_to]).apps
+            MigratedCategory = migrated_apps.get_model("catalog", "Category")
+            MigratedProduct = migrated_apps.get_model("catalog", "Product")
 
-            self.assertEqual(Category.objects.count(), 2)
-            migrated = Category.objects.get(pk=child.pk)
+            self.assertEqual(MigratedCategory.objects.count(), 2)
+            migrated = MigratedCategory.objects.get(pk=child.pk)
             self.assertEqual(
                 (migrated.name, migrated.slug, migrated.description, migrated.image.name, migrated.display_order),
                 ("Копчёная рыба", "smoked", "Описание", "catalog/categories/smoked.png", 2),
             )
-            self.assertEqual(Product.objects.get(pk=product.pk).category_id, migrated.pk)
+            self.assertEqual(MigratedProduct.objects.get(pk=product.pk).category_id, migrated.pk)
             with connection.cursor() as cursor:
                 columns = {column.name for column in connection.introspection.get_table_description(cursor, "catalog_category")}
             self.assertNotIn("parent_id", columns)
         finally:
-            MigrationExecutor(connection).migrate([self.migrate_to])
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes())

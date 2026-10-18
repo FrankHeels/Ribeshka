@@ -121,7 +121,7 @@ def get_cart_state(request):
         return state
 
     product_ids = [parse_product_id(product_id) for product_id in lines]
-    products = Product.objects.published().select_related("category").filter(pk__in=product_ids)
+    products = Product.objects.published().select_related("category", "moysklad_product").filter(pk__in=product_ids)
     products_by_id = {str(product.pk): product for product in products}
 
     visible_lines = {}

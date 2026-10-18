@@ -1,0 +1,63 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div class="backoffice-dashboard moysklad-dashboard moysklad-owner-dashboard">
+  <header class="backoffice-page-intro">
+    <p class="backoffice-eyebrow">Интеграция</p><h1>МойСклад</h1>
+    <p>Товары, цены и передача заявок. Действия выполняются в фоне; обновите страницу, чтобы увидеть результат.</p>
+    {% if request.user.is_superuser %}<p><a class="backoffice-content-link" href="{% url 'admin:moysklad_technical' %}">Технические настройки и диагностика</a></p>{% endif %}
+  </header>
+  {% if not configured %}
+    <section class="backoffice-card"><h2>Подключение не настроено</h2><p>Для настройки обмена обратитесь к техническому администратору. Цены сайта можно изменять в карточках товаров.</p><a class="backoffice-content-link" href="{% url 'admin:catalog_product_changelist' %}">Открыть каталог сайта</a></section>
+  {% else %}
+    <section class="backoffice-card" aria-labelledby="catalog-title">
+      <h2 id="catalog-title">Каталог</h2>
+      {% include "admin/moysklad/service_status.html" with service=services.catalog %}
+      <div class="moysklad-metrics"><div class="moysklad-metric"><span>Несвязанных товаров МойСклад</span><strong>{{ candidate_count }}</strong><p class="backoffice-help">Среди них могут быть отложенные или неподходящие для сайта товары.</p></div></div>
+      <p class="backoffice-help moysklad-description">Обновление получает список товаров. Новая карточка создаётся как черновик; оформление, проверка и публикация выполняются отдельно.</p>
+      <div class="backoffice-shortcuts">
+        {% if perms.integrations.sync_moysklad_catalog %}<form method="post" action="{% url 'admin:moysklad_action' 'catalog' %}">{% csrf_token %}<button class="button button-primary" type="submit">Обновить список товаров</button></form>{% endif %}
+        {% if perms.integrations.view_moyskladproduct %}<a class="button button-secondary" href="{% url 'admin:moysklad_candidates' %}">Несвязанные товары</a>{% endif %}
+        {% if perms.catalog.view_product %}<a class="button button-secondary" href="{% url 'admin:catalog_product_changelist' %}">Карточки сайта</a>{% endif %}
+      </div>
+      {% include "admin/moysklad/business_run.html" with run=last_catalog_run %}
+      <div class="moysklad-audit">
+      <h3>Опубликованные карточки без связи или с блокировкой: {{ audit_count }}</h3>
+      <p class="backoffice-help">Проверьте источник каждой карточки. Снятие блокировки выполняется отдельно после восстановления источника.</p>
+      <ul class="backoffice-dashboard-list">{% for product in audit_products %}<li><a href="{% url 'admin:catalog_product_change' product.pk %}">{{ product.name }}</a> — {% if product.integration_block_reason %}заблокирована{% else %}нет связи{% endif %}</li>{% empty %}<li>Таких карточек нет.</li>{% endfor %}</ul>
+      {% if audit_count > 30 %}<p><a class="backoffice-content-link" href="{% url 'admin:catalog_product_changelist' %}?moysklad=audit">Все карточки для проверки</a></p>{% endif %}
+      </div>
+    </section>
+    <section class="backoffice-card" aria-labelledby="prices-title">
+      <h2 id="prices-title">Цены</h2>
+      {% include "admin/moysklad/service_status.html" with service=services.prices %}
+      <div class="moysklad-metrics">
+        <div class="moysklad-metric"><span>Товаров, ожидающих обновления цены</span><strong>{{ pending_price_count }}</strong></div>
+        <div class="moysklad-metric"><span>Последняя полная проверка цен</span><strong class="moysklad-metric-date">{{ state.prices_reconciled_at|date:"d.m.Y H:i"|default:"Ещё не завершена" }}</strong></div>
+      </div>
+      <p class="backoffice-help moysklad-description">Обновляются только цены связанных карточек. Ручное обновление заменит цену, изменённую на сайте, ценой МойСклад. Описания, фотографии и остатки не меняются.</p>
+      {% if perms.integrations.reconcile_moysklad_prices %}<form method="post" action="{% url 'admin:moysklad_action' 'prices' %}" class="backoffice-shortcuts">{% csrf_token %}<button class="button button-primary" type="submit">Обновить цены</button></form>{% endif %}
+      {% include "admin/moysklad/business_run.html" with run=last_price_run %}
+    </section>
+    <section class="backoffice-card" aria-labelledby="export-title">
+      <h2 id="export-title">Передача заявок</h2>
+      {% include "admin/moysklad/service_status.html" with service=services.export %}
+      <div class="moysklad-metrics">
+        <div class="moysklad-metric"><span>В очереди и обработке</span><strong>{{ export_count }}</strong></div>
+        <div class="moysklad-metric"><span>Требуют разбора</span><strong>{{ export_review_count }}</strong></div>
+      </div>
+      <p class="backoffice-help moysklad-description">Передаются новые заявки после запуска и одобрения согласия техническим администратором. Исторические заявки автоматически не отправляются.</p>
+      <div class="backoffice-shortcuts">
+        {% if perms.integrations.view_moyskladorderlink %}<a class="button button-secondary" href="{% url 'admin:integrations_moyskladorderlink_changelist' %}">Передачи заявок и исправления</a>{% endif %}
+        {% if perms.orders.view_order %}<a class="button button-secondary" href="{% url 'admin:orders_order_changelist' %}">Розничные заявки</a>{% endif %}
+      </div>
+    </section>
+    <section class="backoffice-card" aria-labelledby="statuses-title">
+      <h2 id="statuses-title">Статусы</h2>
+      {% include "admin/moysklad/service_status.html" with service=services.statuses %}
+      <p>Учётный статус МойСклад отображается в карточке переданной заявки.</p>
+      <p class="backoffice-help moysklad-description">Статус не подтверждает наличие товара. Наличие и условия заказа уточняет менеджер; остатки сайт не использует.</p>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -45,8 +45,8 @@ class RetailRequestForm(forms.Form):
         choices=(("delivery", "Доставка"), ("pickup", "Самовывоз")),
         label="Способ получения",
     )
-    address = forms.CharField(max_length=2000, required=False, strip=True, label="Адрес доставки")
-    comment = forms.CharField(max_length=5000, required=False, strip=True, label="Комментарий")
+    address = forms.CharField(max_length=255, required=False, strip=True, label="Адрес доставки")
+    comment = forms.CharField(max_length=3000, required=False, strip=True, label="Комментарий")
     consent = forms.BooleanField(required=True, label="Согласие на обработку данных")
     website = forms.CharField(required=False, max_length=200, strip=True, label="")
     submission_key = forms.UUIDField(widget=forms.HiddenInput)

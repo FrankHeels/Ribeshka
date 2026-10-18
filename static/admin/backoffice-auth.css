@@ -1,0 +1,40 @@
+@font-face {
+  font-family: "Golos Text";
+  src: url("../fonts/golos-text-normal-latin.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Golos Text";
+  src: url("../fonts/golos-text-normal-cyrillic.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root { color-scheme: light; font-family: "Golos Text", system-ui, sans-serif; background: #f3f0e8; color: #302b22; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; }
+.auth-shell { margin: 0 auto; max-width: 36rem; padding: clamp(1.25rem, 5vw, 3rem) 1rem; }
+.auth-brand { color: #514022; display: inline-block; font-size: 1.65rem; font-weight: 800; text-decoration: none; }
+.auth-caption, .auth-footer { color: #6d675d; line-height: 1.55; }
+.auth-card { background: #fff; border: 1px solid #e1dacd; border-radius: 1.25rem; box-shadow: 0 18px 50px #3c30101a; margin-top: 1.3rem; padding: clamp(1.25rem, 4vw, 2rem); }
+.auth-card h1 { color: #352d20; font-size: clamp(1.5rem, 5vw, 2rem); line-height: 1.2; margin: 0 0 1rem; }
+.auth-card p { line-height: 1.55; }
+.auth-card form { display: grid; gap: 0.8rem; }
+.auth-card table { border-collapse: collapse; width: 100%; }
+.auth-card th, .auth-card td { display: block; text-align: left; }
+.auth-card th { font-weight: 600; margin: 0.7rem 0 0.3rem; }
+.auth-card input:not([type="hidden"]), .auth-card select { background: #fff; border: 1px solid #c9c0b0; border-radius: 0.55rem; color: #302b22; font: inherit; min-height: 2.8rem; padding: 0.65rem 0.75rem; width: 100%; }
+.auth-card input:focus-visible, .auth-card button:focus-visible, .auth-card a:focus-visible { outline: 3px solid #ad853e; outline-offset: 2px; }
+.auth-card button, .auth-card input[type="submit"], .auth-card .btn { background: #80612d; border: 1px solid #80612d; border-radius: 0.6rem; color: #fff; cursor: pointer; display: inline-block; font: inherit; font-weight: 700; min-height: 2.7rem; padding: 0.65rem 1rem; text-decoration: none; }
+.auth-card button:disabled { background: #ddd7cc; border-color: #ddd7cc; color: #746f66; cursor: not-allowed; }
+.auth-card .errorlist, .auth-card .alert-danger { background: #fff0ed; border-radius: 0.5rem; color: #8b2f21; list-style: none; margin: 0.5rem 0; padding: 0.7rem; }
+.auth-card .alert-warning { background: #fff6dd; border-radius: 0.5rem; padding: 0.8rem; }
+.auth-card .btn-link { background: transparent; border-color: transparent; color: #705321; }
+.auth-card img { height: auto; max-width: 100%; }
+.auth-footer { font-size: 0.875rem; margin: 1rem 0; }
+.auth-card a { color: #705321; }
+@media (max-width: 30rem) { .auth-card { border-radius: 0.9rem; } }

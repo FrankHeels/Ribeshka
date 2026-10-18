@@ -32,6 +32,14 @@ class NotificationOutbox(models.Model):
         blank=True,
         on_delete=models.PROTECT,
     )
+    incident = models.OneToOneField(
+        "integrations.MoySkladIncident",
+        verbose_name="Инцидент МойСклад",
+        related_name="notification_outbox",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+    )
     status = models.CharField("Состояние", max_length=20, choices=Status.choices, default=Status.PENDING)
     attempt_count = models.PositiveIntegerField("Число попыток", default=0)
     last_error = models.TextField("Последняя ошибка", blank=True)
@@ -47,7 +55,11 @@ class NotificationOutbox(models.Model):
         ordering = ("created_at", "pk")
         constraints = [
             models.CheckConstraint(
-                condition=(Q(order__isnull=False, inquiry__isnull=True) | Q(order__isnull=True, inquiry__isnull=False)),
+                condition=(
+                    Q(order__isnull=False, inquiry__isnull=True, incident__isnull=True)
+                    | Q(order__isnull=True, inquiry__isnull=False, incident__isnull=True)
+                    | Q(order__isnull=True, inquiry__isnull=True, incident__isnull=False)
+                ),
                 name="outbox_exactly_one_request",
             ),
             models.CheckConstraint(
@@ -84,14 +96,16 @@ class NotificationOutbox(models.Model):
             request_number = self.order.order_number
         elif self.inquiry_id:
             request_number = self.inquiry.inquiry_number
+        elif self.incident_id:
+            request_number = f"Инцидент {self.incident_id}"
         else:
             request_number = "Заявка не указана"
         return f"{request_number}: {self.get_status_display()}"
 
     def clean(self):
         super().clean()
-        if bool(self.order_id) == bool(self.inquiry_id):
-            raise ValidationError("Уведомление должно ссылаться ровно на одну заявку.")
+        if sum(bool(value) for value in (self.order_id, self.inquiry_id, self.incident_id)) != 1:
+            raise ValidationError("Уведомление должно ссылаться ровно на одну заявку или инцидент.")
         if self.status == self.Status.PROCESSING and (not self.lease_token or not self.lease_expires_at):
             raise ValidationError("Для обработки нужны срок захвата и токен владельца.")
 
@@ -113,3 +127,16 @@ class PublicFormRateLimit(models.Model):
 
     def __str__(self):
         return self.bucket_key
+
+
+# Django discovers models here; exchange services keep their own module.
+from .moysklad.models import (  # noqa: E402, F401
+    MoySkladApiState,
+    MoySkladIncident,
+    MoySkladOrderLink,
+    MoySkladProduct,
+    MoySkladSyncRun,
+    MoySkladSyncState,
+    MoySkladTask,
+    MoySkladWebhookInbox,
+)

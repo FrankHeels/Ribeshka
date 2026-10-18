@@ -3,14 +3,17 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.db.models import Prefetch
+from django.urls import reverse
 
 from orders.models import OrderItem
 
 from integrations.models import NotificationOutbox
+from integrations.moysklad.config import get_config
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,11 +46,37 @@ class RequestNotification:
         return f"{self.kind}:{self.submission_key}"
 
 
+@dataclass(frozen=True, slots=True)
+class IncidentNotificationDTO:
+    incident_id: int
+    created_at: datetime
+    scope: str
+    code: str
+    object_ids: tuple[str, ...]
+    diagnostics_url: str
+    kind: str = "moysklad_incident"
+
+    @property
+    def delivery_key(self):
+        return f"moysklad_incident:{self.incident_id}"
+
+
+def _incident_diagnostics_url():
+    path = reverse("admin:moysklad_status")
+    try:
+        receiver = urlsplit(get_config().webhook_url)
+    except (ImproperlyConfigured, ValueError):
+        return path
+    if receiver.scheme == "https" and receiver.netloc:
+        return urlunsplit(("https", receiver.netloc, path, "", ""))
+    return path
+
+
 def build_notification(outbox_id, *, using="default"):
     """Read a saved request and its immutable retail item snapshots."""
     row = (
         NotificationOutbox.objects.using(using)
-        .select_related("order", "inquiry")
+        .select_related("order", "inquiry", "incident")
         .prefetch_related(Prefetch("order__items", queryset=OrderItem.objects.using(using).order_by("pk")))
         .get(pk=outbox_id)
     )
@@ -90,6 +119,14 @@ def build_notification(outbox_id, *, using="default"):
             email=inquiry.email,
             company=inquiry.company,
             need=inquiry.need,
+        )
+
+    if row.incident_id:
+        incident = row.incident
+        return IncidentNotificationDTO(
+            incident_id=incident.pk, created_at=incident.opened_at,
+            scope=incident.scope, code=incident.code, object_ids=tuple(incident.object_ids),
+            diagnostics_url=_incident_diagnostics_url(),
         )
 
     raise ObjectDoesNotExist("Outbox request is unavailable")

@@ -100,6 +100,9 @@ class SMTPNotificationBackend:
         elif notification.kind == "wholesale":
             subject = f"Оптовый запрос {notification.request_number}"
             template_name = "notifications/wholesale.txt"
+        elif notification.kind == "moysklad_incident":
+            subject = f"МойСклад: требуется проверка ({notification.code})"
+            template_name = "notifications/moysklad_incident.txt"
         else:
             raise PermanentDeliveryError("notification_kind_unknown")
 

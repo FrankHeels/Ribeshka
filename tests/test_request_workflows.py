@@ -20,6 +20,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from catalog.models import Category, Product
+from catalog.pricing import change_product_price
 from content.models import ConsentRevision
 from inquiries.models import Inquiry
 from integrations.models import NotificationOutbox
@@ -103,7 +104,7 @@ class PrimaryRequestWorkflowTests(TestCase):
     # Два добавления без JavaScript складываются в 5 кг; POST с подменёнными
     # суммами создаёт доставку по серверной цене и сохраняет снимок товара,
     # согласие, одну outbox-запись и очищает корзину. Страница успеха показывает
-    # номер, скрывает личные данные и имеет noindex/no-store.
+    # принимает общим сообщением без внутренних данных и имеет noindex/no-store.
     def test_accumulated_cart_no_js_delivery_post_saves_decimal_snapshots_and_private_success(self):
         self.add(self.client, weight="2")
         self.add(self.client, weight="3")
@@ -146,8 +147,13 @@ class PrimaryRequestWorkflowTests(TestCase):
         self.assertEqual(NotificationOutbox.objects.filter(order=order).count(), 1)
         self.assertEqual(self.client.session.get(CART_SESSION_KEY, {}), {})
 
+        change_product_price(
+            product_id=self.product.pk,
+            price=Decimal("99.99"),
+            source=Product.PriceSource.MANUAL,
+        )
+        self.product.refresh_from_db()
         self.product.name = "Changed catalog name"
-        self.product.price_per_kg = Decimal("99.99")
         self.product.is_published = False
         self.product.save()
         items[0].refresh_from_db()
@@ -157,7 +163,11 @@ class PrimaryRequestWorkflowTests(TestCase):
 
         success = self.client.get(response.url)
         self.assertEqual(success.status_code, 200)
-        self.assertContains(success, order.order_number)
+        self.assertContains(success, "Заявка получена")
+        self.assertContains(success, "Менеджер свяжется с вами для подтверждения наличия, количества и стоимости товаров.")
+        self.assertNotContains(success, order.order_number)
+        self.assertNotIn("order", success.context)
+        self.assertNotIn("order_number", success.context)
         for private_value in (
             "Primary Retail Contact",
             "+7 (921) 555-01-02",
@@ -222,7 +232,10 @@ class PrimaryRequestWorkflowTests(TestCase):
 
         success = self.client.get(response.url)
         self.assertEqual(success.status_code, 200)
-        self.assertContains(success, inquiry.inquiry_number)
+        self.assertContains(success, "Заявка принята. Менеджер свяжется с вами")
+        self.assertNotContains(success, inquiry.inquiry_number)
+        self.assertNotIn("inquiry", success.context)
+        self.assertNotIn("inquiry_number", success.context)
         self.assertNotContains(success, "Primary Wholesale Contact")
         self.assertNotContains(success, "+7 (921) 555-03-04")
 

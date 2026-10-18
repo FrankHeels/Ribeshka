@@ -49,4 +49,16 @@ if NOTIFICATION_BACKEND not in {
 NOTIFICATION_LEASE_SECONDS = int(os.environ.get("FISHSITE_TEST_LEASE_SECONDS", "300"))
 NOTIFICATION_SCAN_INTERVAL_SECONDS = int(os.environ.get("FISHSITE_TEST_SCAN_SECONDS", "60"))
 TEST_RUNNER = "fishsite.test_runner.IsolatedTestRunner"
+MOYSKLAD_TEST_MODE = True
+MOYSKLAD = {
+    **{name: "" for name in (
+        "account_id", "namespace", "api_token", "admin_token", "price_type_id", "currency_id",
+        "unit_id", "organization_id", "agent_id", "initial_state_id", "webhook_secret", "webhook_url",
+    )},
+    "environment": "test",
+    "catalog_enabled": False,
+    "prices_enabled": False,
+    "export_enabled": False,
+    "statuses_enabled": False,
+}
 install_network_guard()

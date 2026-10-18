@@ -16,6 +16,7 @@ from ..cart.state import (
     set_stored_lines,
 )
 from ..models import Order, OrderItem
+from .logic import cart_line_snapshot
 
 
 def lock_retail_submission(key, *, using="default"):
@@ -44,6 +45,14 @@ def load_locked_cart_snapshot(request, *, using):
         .filter(pk__in=product_ids)
         .order_by("pk")
     )
+    # Acquire registry locks only after every Product lock, matching remapping.
+    from integrations.models import MoySkladProduct
+    external_rows = MoySkladProduct.objects.using(using).select_for_update().filter(
+        product_id__in=[product.pk for product in locked_products],
+    ).order_by("pk")
+    external_by_product = {row.product_id: row for row in external_rows}
+    for product in locked_products:
+        product._state.fields_cache["moysklad_product"] = external_by_product.get(product.pk)
     products = {str(product.pk): product for product in locked_products}
     snapshot_items = []
     snapshots = []
@@ -52,7 +61,7 @@ def load_locked_cart_snapshot(request, *, using):
 
     for product_id, raw_weight in sorted(lines.items(), key=lambda pair: int(pair[0])):
         product = products.get(product_id)
-        if product is None or not product.is_published:
+        if product is None or not product.is_published or product.integration_block_reason:
             has_unavailable = True
             continue
         weight = parse_stored_weight(raw_weight)
@@ -61,12 +70,7 @@ def load_locked_cart_snapshot(request, *, using):
             has_invalid_weight = True
         weight_display = format(weight.to_integral_value(), "f") if valid_weight else raw_weight
         snapshot_items.append(
-            {
-                "product_id": product_id,
-                "name": product.name,
-                "price_per_kg": format(product.price_per_kg, ".2f"),
-                "weight": weight_display,
-            }
+            cart_line_snapshot(product, product_id, weight_display)
         )
         snapshots.append((product, weight, raw_weight, valid_weight))
 
@@ -86,6 +90,8 @@ def persist_retail_order(order_data, item_data, *, using="default"):
     order_items = [OrderItem(order=order, **item) for item in item_data]
     OrderItem.objects.using(using).bulk_create(order_items)
     enqueue_notification(order=order, using=using)
+    from integrations.moysklad.order_export import enqueue_order_export
+    enqueue_order_export(order, using=using)
     return order
 
 

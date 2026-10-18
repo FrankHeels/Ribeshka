@@ -30,9 +30,9 @@
   --text-hero: clamp(3.75rem, 6.4vw, 6.5rem);
   --text-h2: clamp(3rem, 4.6vw, 4.25rem);
   --text-h3: 1.875rem;
-  --text-body: 1rem;
-  --text-small: .875rem;
-  --text-label: .75rem;
+  --text-body: 1.125rem;
+  --text-small: 1rem;
+  --text-label: 1rem;
   --container: 76rem;
   --gutter: clamp(1.5rem, 4vw, 5rem);
   --section-y: clamp(4rem, 7vw, 6rem);

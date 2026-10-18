@@ -42,6 +42,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from catalog.models import Category, Product
+from catalog.pricing import change_product_price
 from content.consent_revisions import get_current_consent_revision
 from inquiries.models import Inquiry
 from integrations.models import NotificationOutbox
@@ -60,6 +61,7 @@ from integrations.notifications.worker import (
     load_backend,
 )
 from orders.models import Order, OrderItem
+from tests.backoffice_helpers import login_verified_admin
 
 
 class _SMTPHandler(socketserver.StreamRequestHandler):
@@ -300,8 +302,13 @@ class NotificationIntegrationTests(TransactionTestCase):
         order, item, outbox = self.retail_request()
         notification = build_notification(outbox.pk)
 
+        change_product_price(
+            product_id=self.product.pk,
+            price="99.99",
+            source=Product.PriceSource.MANUAL,
+        )
+        self.product.refresh_from_db()
         self.product.name = "Renamed after request"
-        self.product.price_per_kg = "99.99"
         self.product.is_published = False
         self.product.save()
         self.product.delete()
@@ -751,8 +758,13 @@ class NotificationIntegrationTests(TransactionTestCase):
             retail_outbox = NotificationOutbox.objects.get(order=retail_order)
             self.assertTrue(list(listener.notifies(timeout=2, stop_after=1)))
 
+            change_product_price(
+                product_id=self.product.pk,
+                price="88.88",
+                source=Product.PriceSource.MANUAL,
+            )
+            self.product.refresh_from_db()
             self.product.name = "Catalog changed before delivery"
-            self.product.price_per_kg = "88.88"
             self.product.save()
             self.product.delete()
 
@@ -1120,7 +1132,8 @@ class NotificationIntegrationTests(TransactionTestCase):
             graceful_process.send_signal(signal.SIGTERM)
             stdout, _ = graceful_process.communicate(timeout=5)
             self.assertEqual(graceful_process.returncode, 0, stdout)
-            self.assertIn('"event":"worker_stopped"', stdout)
+            self.assertIn("[worker_stopped]", stdout)
+            self.assertIn("result=stopped", stdout)
         finally:
             if graceful_process.poll() is None:
                 graceful_process.kill()
@@ -1217,7 +1230,7 @@ class NotificationIntegrationTests(TransactionTestCase):
 
         path = reverse("admin:integrations_notificationoutbox_changelist")
         view_client = Client()
-        view_client.force_login(view_user)
+        login_verified_admin(view_client, view_user)
         response = view_client.post(path, {"action": "retry_manual_review", "_selected_action": [manual.pk]})
         self.assertEqual(response.status_code, 200)
         manual.refresh_from_db()
@@ -1225,7 +1238,7 @@ class NotificationIntegrationTests(TransactionTestCase):
         self.assertEqual(list(listener.notifies(timeout=0.1, stop_after=1)), [])
 
         change_client = Client()
-        change_client.force_login(change_user)
+        login_verified_admin(change_client, change_user)
         response = change_client.post(
             path,
             {
