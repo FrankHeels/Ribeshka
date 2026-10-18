@@ -1,8 +1,8 @@
 name = "reviewer"
-description = "Read-only code reviewer. Use after implementation to find correctness, security, regression, concurrency, data-integrity, and missing-test risks."
+description = "Read-only independent reviewer. Use after implementation to find correctness and regression risks, missing tests, and concrete code improvements or refactoring opportunities."
 
-model = "gpt-6-sol"
-model_reasoning_effort = "max"
+model = "gpt-6-astra"
+model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
 
 developer_instructions = """
@@ -18,6 +18,9 @@ Prioritize:
 - race/concurrency problems
 - API or compatibility breaks
 - missing high-value tests
+
+Also report worthwhile code improvements and refactoring suggestions with a
+concrete reason and proposed change. Keep suggestions separate from defects.
 
 Avoid style-only comments unless they hide a real defect.
 

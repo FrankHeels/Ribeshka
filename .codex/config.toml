@@ -1,5 +1,34 @@
+# Codex: Django-Orchestration TDD profile
+#
+# The root and backender use GPT-6.1 Sol at xhigh reasoning. The tester,
+# explorer, and researcher use Luna at medium reasoning; the independent
+# reviewer uses Astra at medium reasoning.
+#
+# The installer writes this file as <repo>/.codex/config.toml when you
+# select Django-Orchestration. For a personal/global setup, merge these settings
+# into ~/.codex/config.toml instead.
+#
+# Main knobs to change:
+#   model / model_reasoning_effort
+#   agents.default_subagent_model
+#   agents.default_subagent_reasoning_effort
+#   agents.max_concurrent_threads_per_session
+
+# Root / TDD orchestrator
+model = "gpt-6.1-sol"
+model_reasoning_effort = "max"
+
+# Safe interactive defaults. Change if your workflow needs otherwise.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
 [agents]
 enabled = true
-max_concurrent_threads_per_session = 4
+
+# Number of child agent threads Codex may keep open concurrently.
+# Keep this low: every concurrent subagent re-reads its own context.
+max_concurrent_threads_per_session = 5
+
+# Default for any spawned subagent that does not explicitly choose a model.
 default_subagent_model = "gpt-6-luna"
-default_subagent_reasoning_effort = "max"
+default_subagent_reasoning_effort = "xhigh"
