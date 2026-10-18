@@ -44,7 +44,8 @@ export DJANGO_DB_USER=fishsite
 export DJANGO_DB_HOST=127.0.0.1
 export DJANGO_DB_PORT=5432
 # DJANGO_DB_PASSWORD — пароль вашей локальной роли, если сервер его требует.
-# DJANGO_SECRET_KEY — свой секрет окружения; обязателен перед развёртыванием.
+# DJANGO_SECRET_KEY — свой случайный секрет окружения; обязателен для приложения.
+# DJANGO_DEBUG=true — только для приватной локальной разработки с runserver.
 uv run python manage.py migrate
 uv run python manage.py createsuperuser
 uv run python manage.py runserver
@@ -55,8 +56,12 @@ uv run python manage.py runserver
 заданные переменные окружения имеют приоритет, поэтому `source .env` не нужен.
 Локальный `.env` с секретами исключён из Git; не добавляйте этот файл в репозиторий. При развёртывании
 задавайте секреты через окружение процесса или secret store.
-По умолчанию включён режим разработки (`DJANGO_DEBUG=true`); для развёртывания
-задайте `DJANGO_DEBUG=false`, `DJANGO_SECRET_KEY` и `DJANGO_ALLOWED_HOSTS`.
+По умолчанию `DJANGO_DEBUG=false`; общего запасного `SECRET_KEY` нет.
+Создайте уникальный `DJANGO_SECRET_KEY` в локальном `.env` или secret store:
+`.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(64))'`.
+Результат не отправляйте в чат или Git. Для приватного локального `runserver`
+явно задайте `DJANGO_DEBUG=true`, чтобы он обслуживал static/media.
+При развёртывании оставьте `DJANGO_DEBUG=false` и задайте точные `DJANGO_ALLOWED_HOSTS`.
 Дополнительные настройки: `DJANGO_DB_CONN_MAX_AGE` (60 секунд),
 `DJANGO_MEDIA_ROOT` (по умолчанию `media/`). Изображения не входят в Git.
 

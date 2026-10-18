@@ -40,8 +40,8 @@ def _float_environment_setting(name, default):
         raise ImproperlyConfigured(f"{name} must be a number.") from None
 
 
-SECRET_KEY = _environment.get("DJANGO_SECRET_KEY", "development-only-change-before-deploy")
-DEBUG = _environment.get("DJANGO_DEBUG", "true").lower() == "true"
+SECRET_KEY = _environment.get("DJANGO_SECRET_KEY", "")
+DEBUG = _boolean_environment_setting("DJANGO_DEBUG")
 ALLOWED_HOSTS = [
     host.strip()
     for host in _environment.get(
