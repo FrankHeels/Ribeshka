@@ -8,12 +8,13 @@ the [project index](wiki/INDEX.md) as needed.
 The public pages use Django templates. Home, information, category, and product
 views load their data from PostgreSQL. Home and the shared assortment menu list
 categories that contain published products; category and product pages show only
-published products. The anonymous retail cart is stored in the server session;
-its add, update, and remove actions validate on the server. Retail and wholesale
+published products without an integration block. The same rule applies to search, recommendations, direct URLs and cart operations. The anonymous retail cart is stored in the server session;
+its add, update, and remove actions validate on the server. Signed checkout snapshots also bind the mapping revision and external identity; a changed mapping requires confirmation. Retail and wholesale
 request forms are enabled. Retail submission is part of the cart;
 wholesale submission collects contacts without a description. Services persist requests
 and outbox tasks atomically, emit transactional pg_notify, and resolve duplicate keys.
-SMTP delivery and the LISTEN worker remain a later stage.
+SMTP delivery and the LISTEN worker are implemented independently of the
+owner panel; see [notifications](wiki/notifications.md).
 
 ## Shared page context
 
@@ -27,6 +28,9 @@ SMTP delivery and the LISTEN worker remain a later stage.
 - `navigation_categories`: categories with at least one published product, ordered
   by `display_order`, name, and primary key. The shared assortment menu uses them
   on every page.
+- `site_settings`: singleton contacts, opening hours, social links and footer copy;
+  blank values hide the corresponding detail. Provided on every page by the
+  content context processor; never duplicate those values in editorial text.
 
 The base template owns the document language, viewport, shared navigation,
 footer, skip link, breadcrumb navigation, stylesheet, and metadata.
@@ -43,9 +47,9 @@ sized images with meaningful alt text. There is no public `/catalog/` index page
 | `catalog:product` | `catalog/product.html` | A real published `product`, `forms_enabled=True`, `field_errors`, optional `field_ids`, `initial_weight`, and breadcrumbs. The initial weight is always 1 kg to add; invalid POST responses preserve the submitted value. The legend and button always say `Добавить в корзину`. Resolve unknown or unpublished products as 404. Adding the same product increases the line's weight. |
 | `orders:cart` | `orders/cart.html` | Current `cart_items`, `forms_enabled=True`, server `cart_total`, `cart_total_is_valid`, `cart_error`, generic `cart_issues`, `submission`, optional `values`, `field_errors`, `form_errors`, `price_changed`, `cart_changes`, and breadcrumbs. The retail contact form is below the total. |
 | `orders:checkout` | Redirect / cart handler | GET redirects to `/cart/#request`; POST uses the same server-side retail submission handler. The old checkout template is not a separate public screen. |
-| `orders:success` | `orders/success.html` | `order_number` only after resolving the unguessable URL token to a saved order. Unknown tokens return 404. Never include customer details. |
+| `orders:success` | `orders/success.html` | Verify existence by the unguessable URL token; unknown tokens return 404. Render `Заявка получена` and explain that the manager will confirm availability, quantity and cost. No request object, number, PK, external UUID or contacts in context/HTML/headers. |
 | `inquiries:wholesale` | `inquiries/wholesale.html` | `forms_enabled=True`, signed `submission`, optional submitted `values`, `field_errors`, and form-level `form_errors`. |
-| `inquiries:success` | `inquiries/success.html` | `inquiry_number` only, after resolving the separate unguessable UUID token; unknown/malformed tokens return 404. |
+| `inquiries:success` | `inquiries/success.html` | Verify existence by the separate UUID token; unknown/malformed tokens return 404. Render the generic wholesale acceptance message; apply the same identifier restrictions as retail. |
 | `content:about`, `content:delivery`, `content:contacts` | `content/page.html` (`delivery` extends it) | `page_lead` as the optional lead section (title/body), and `content_sections` as an ordered sequence of `{title, body}` or an accurate `content_notice` while client material is missing. |
 | `content:privacy`, `content:personal_data_consent`, `content:yandex_metrica_consent` | `content/legal.html` | `legal_html` rendered from allowlisted repository Markdown, `legal_draft_notice`, `legal_navigation` with current-page indication, breadcrumbs and draft `meta_robots`. Privacy keeps CMS title/SEO; its body always comes from Markdown. |
 | `content:consent_revision` | `content/legal.html` | Exact archived consent text plus `legal_revision` with registered identifier, timestamp and SHA-256; unknown IDs return 404. |
@@ -59,8 +63,23 @@ menu exposes the same categories on every page and links back to the homepage
 assortment section. Category pages contain each category's published products.
 The hero displays three approved promises with decorative SVG icons: raw-material
 quality, own production, and modern standards. Below 900 px they follow the
-introductory copy and action. The legacy `hero_photo` context value is unused.
+introductory copy and action. `hero_values` supplies editable promise captions
+and local decorative icons. The cover has no uploaded image or separate settings
+model. Its action is fixed in the template: «Перейти к ассортименту» with
+`href="#assortment"`. Legacy cover/image/button context cannot override it.
 The default hero copy invites an inquiry; editable `hero_section.body` takes precedence.
+A separate notice before the hero action always explains that prices are indicative,
+the manager confirms availability of the requested quantity and the final cost,
+and submitting an inquiry does not reserve goods. Editing the hero copy does not
+remove this notice; it remains fully readable on narrow screens.
+`featured_products` follows the two explicit `HomepageRecommendation` slots;
+unpublished, blocked or empty slots are omitted without replacement. These are
+the only sales hits: their cards receive `recommended=True` and the «Хит» badge
+only in the homepage section. Category pages have no sales-hit filter or badge;
+the legacy `?popular=1` parameter does not change their product list or pagination.
+The stored legacy `Product.is_popular` flag is no longer exposed in the product
+editor and does not affect public display or recommendation selection. Product ordering uses
+`display_order`, name and pk; category/product metadata uses stored SEO fallback.
 A product card requires
 `{name, slug}` and may include `short_description`, `price_per_kg` as `Decimal`,
 and `primary_photo` with `url` and `alt_text`. A product page additionally
@@ -70,6 +89,25 @@ of kilograms from 1 to 99,999, with a 1 kg step for every product. The legacy
 retail selection. The view must provide only published products and must calculate
 all money values on the server. Browser weight and price fields are input hints,
 not trusted values.
+
+Category and homepage recommendation cards label the shown price as indicative
+and direct availability questions to the manager. Without a shown price, the
+card directs both price and availability questions to the manager. Product pages
+explain near the price and weight selector that the manager confirms the current
+price and available quantity; the selected weight is the customer's request.
+The cart summary also requires confirmation of availability, actual weight,
+delivery cost and the final total. Keep this explanation beside the preliminary
+total, without a duplicate banner before the submit button or another checkbox.
+These notices remain fully readable on narrow screens.
+
+Information sections may also contain `image`/`image_alt`; retain escaped
+paragraphs and meaningful image descriptions. Contacts render structured
+`site_settings` independently of a blank editorial lead. Legal bodies continue
+to use repository Markdown.
+
+`admin:product_preview` renders a draft only after staff+OTP and catalog view
+permission. It sets `preview_mode=True`, `forms_enabled=False`, `no-store` and
+`noindex, nofollow, noarchive`. Public product URLs still return 404 for drafts.
 
 Each `cart_items` entry contains a stable numeric product-ID `key`, a currently
 published `product`, its current server-verified `price_per_kg`, desired `weight`
