@@ -24,6 +24,7 @@ class ContentPage(models.Model):
 
     key = models.CharField("Страница", max_length=16, choices=Key.choices, unique=True)
     title = models.CharField("Заголовок страницы", max_length=180, blank=True)
+    body = models.TextField("Текст страницы", blank=True)
     seo_title = models.CharField("SEO-заголовок", max_length=180, blank=True)
     seo_description = models.CharField("SEO-описание", max_length=320, blank=True)
     created_at = models.DateTimeField("Создана", auto_now_add=True)
@@ -258,6 +259,25 @@ class SiteSettings(SingletonModel):
 
     def __str__(self):
         return "Контакты и общие настройки"
+
+
+class SiteLink(models.Model):
+    settings = models.ForeignKey(SiteSettings, on_delete=models.CASCADE, related_name="links", verbose_name="Настройки сайта")
+    name = models.CharField("Название", max_length=80)
+    url = models.URLField("Ссылка", max_length=500, blank=True, validators=[validate_site_link])
+    image = models.ImageField("Изображение", upload_to="content/links/", blank=True, validators=[validate_site_image])
+
+    class Meta:
+        verbose_name = "ссылка"
+        verbose_name_plural = "ссылки"
+        ordering = ("pk",)
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class HomepageRecommendation(models.Model):

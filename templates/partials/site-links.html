@@ -1,0 +1,7 @@
+{% if site_links %}
+  <nav class="site-social-links" aria-label="Социальные сети и мессенджеры">
+    {% for link in site_links %}
+      {% if link.url %}<a class="site-social-link{% if link.image %} site-social-link-icon{% endif %}" href="{{ link.url }}" target="_blank" rel="noopener noreferrer"{% if link.image %} aria-label="{{ link.name }}" title="{{ link.name }}"{% endif %}>{% if link.image %}<img src="{{ link.image.url }}" alt="{{ link.name }}" width="32" height="32" loading="lazy" decoding="async">{% else %}{{ link.name }}{% endif %}</a>{% endif %}
+    {% endfor %}
+  </nav>
+{% endif %}

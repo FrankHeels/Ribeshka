@@ -3,15 +3,9 @@
   <header class="page-heading page-heading-narrow">
     <p class="section-kicker">Информация</p>
     <h1>{{ page_title }}</h1>
-    {% if page_lead.title or page_lead.body or page_lead.image %}<div class="page-lead">{% if page_lead.title %}<p>{{ page_lead.title }}</p>{% endif %}{% if page_lead.body %}<div class="rich-copy">{{ page_lead.body|linebreaks }}</div>{% endif %}{% if page_lead.image %}<figure class="content-section-image"><img src="{{ page_lead.image.url }}" alt="{{ page_lead.image_alt }}" loading="lazy" decoding="async"></figure>{% endif %}</div>{% endif %}
+    {% if page_body %}<div class="page-lead rich-copy">{{ page_body|linebreaks }}</div>{% endif %}
   </header>
-  {% if content_sections %}
-    <article class="content-article">
-      {% for section in content_sections %}
-        <section>{% if section.title %}<h2>{{ section.title }}</h2>{% endif %}{% if section.body %}<div class="rich-copy">{{ section.body|linebreaks }}</div>{% endif %}{% if section.image %}<figure class="content-section-image"><img src="{{ section.image.url }}" alt="{{ section.image_alt }}" loading="lazy" decoding="async"></figure>{% endif %}</section>
-      {% endfor %}
-    </article>
-  {% elif not page_lead.title and not page_lead.body and not page_lead.image %}
+  {% if not page_body %}
     <div class="empty-state info-pending" role="status">
       <h2>Материалы ещё не добавлены</h2>
       <p>{{ content_notice }}</p>
@@ -19,19 +13,4 @@
     </div>
   {% endif %}
   {% block after_content %}{% endblock %}
-  {% if show_contact_details %}
-    <section class="site-contact-details" aria-labelledby="site-contact-details-title">
-      <h2 id="site-contact-details-title">Контакты</h2>
-      {% if site_settings.phone_primary %}<p>Телефон: <a href="tel:{{ site_settings.phone_primary|cut:' '|cut:'-'|cut:'('|cut:')' }}">{{ site_settings.phone_primary }}</a></p>{% endif %}
-      {% if site_settings.phone_secondary %}<p>Дополнительный телефон: <a href="tel:{{ site_settings.phone_secondary|cut:' '|cut:'-'|cut:'('|cut:')' }}">{{ site_settings.phone_secondary }}</a></p>{% endif %}
-      {% if site_settings.email %}<p>Электронная почта: <a href="mailto:{{ site_settings.email }}">{{ site_settings.email }}</a></p>{% endif %}
-      {% if site_settings.address %}<p>Адрес: {{ site_settings.address }}</p>{% endif %}
-      {% if site_settings.opening_hours %}<div><h3>График работы</h3>{{ site_settings.opening_hours|linebreaks }}</div>{% endif %}
-      <div class="site-social-links">
-        {% if site_settings.whatsapp_url %}<a href="{{ site_settings.whatsapp_url }}" target="_blank" rel="noopener noreferrer">WhatsApp</a>{% endif %}
-        {% if site_settings.telegram_url %}<a href="{{ site_settings.telegram_url }}" target="_blank" rel="noopener noreferrer">Telegram</a>{% endif %}
-        {% if site_settings.vk_url %}<a href="{{ site_settings.vk_url }}" target="_blank" rel="noopener noreferrer">ВКонтакте</a>{% endif %}
-      </div>
-    </section>
-  {% endif %}
 {% endblock %}

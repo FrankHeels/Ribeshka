@@ -1,11 +1,8 @@
-from uuid import uuid4
-
 from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.shortcuts import redirect
-from django.utils.html import format_html
 from unfold.admin import ModelAdmin, StackedInline
 
 from catalog.models import Product
@@ -13,96 +10,17 @@ from catalog.models import Product
 from .models import (
     ConsentRevision,
     ContentPage,
-    ContentSection,
     HomepageRecommendation,
-    HOME_SECTION_LABELS,
     SiteSettings,
+    SiteLink,
 )
-
-
-class ContentSectionInlineForm(forms.ModelForm):
-    class Meta:
-        model = ContentSection
-        fields = "__all__"
-        widgets = {"key": forms.HiddenInput(), "page": forms.HiddenInput()}
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if "key" in self.fields:
-            self.fields["key"].required = False
-        if self.instance.pk and "key" in self.fields:
-            self.fields["key"].disabled = True
-        if self.instance.key == "contacts" and "body" in self.fields:
-            self.fields["body"].help_text = (
-                "Здесь только поясняющий текст. Телефоны, email, адрес, график и ссылки "
-                "редактируются один раз в разделе «Контакты и общие настройки»."
-            )
-        if self.instance.page_id and self.instance.page.key == ContentPage.Key.HOME:
-            sortable = self.instance.key.startswith(("advantage_", "step_"))
-            if not sortable and "display_order" in self.fields:
-                self.fields["display_order"].widget = forms.HiddenInput()
-                self.fields["display_order"].disabled = True
-            if self.instance.key.startswith("hero_value_") and "body" in self.fields:
-                self.fields["body"].widget = forms.HiddenInput()
-                self.fields["body"].disabled = True
-
-    def clean(self):
-        cleaned = super().clean()
-        if not self.instance.pk and not cleaned.get("key"):
-            if not cleaned.get("title", "").strip() and not cleaned.get("body", "").strip():
-                self.add_error("title", "Добавьте заголовок или текст блока.")
-            else:
-                cleaned["key"] = f"block-{uuid4().hex}"
-        return cleaned
-
-
-class ContentSectionInline(StackedInline):
-    model = ContentSection
-    form = ContentSectionInlineForm
-    extra = 0
-    ordering = ("display_order", "pk")
-    readonly_fields = ("block_label", "image_preview", "updated_at")
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related("page")
-
-    @admin.display(description="Блок страницы")
-    def block_label(self, obj):
-        if not obj:
-            return "Новый информационный блок"
-        return HOME_SECTION_LABELS.get(obj.key, obj.title or "Информационный блок")
-
-    @admin.display(description="Текущее фото")
-    def image_preview(self, obj):
-        if not obj or not obj.image:
-            return "Фото не загружено"
-        return format_html('<img class="backoffice-thumbnail" src="{}" alt="">', obj.image.url)
-
-    def get_fields(self, request, obj=None):
-        common = ["block_label", "title", "body", "display_order"]
-        if obj and obj.key == ContentPage.Key.HOME:
-            return (*common, "updated_at")
-        if obj and obj.key == ContentPage.Key.PRIVACY:
-            return (*common, "updated_at")
-        return (*common, "key", "image_preview", "image", "image_alt", "updated_at")
-
-    def get_readonly_fields(self, request, obj=None):
-        readonly = ["block_label", "image_preview", "updated_at"]
-        return tuple(readonly)
-
-    def has_add_permission(self, request, obj=None):
-        return bool(obj and obj.key not in {ContentPage.Key.HOME, ContentPage.Key.PRIVACY}) and super().has_add_permission(request, obj)
-
-    def has_delete_permission(self, request, obj=None):
-        return bool(obj and obj.key not in {ContentPage.Key.HOME, ContentPage.Key.PRIVACY}) and super().has_delete_permission(request, obj)
 
 
 @admin.register(ContentPage)
 class ContentPageAdmin(ModelAdmin):
     list_display = ("page_name", "title", "updated_at")
-    search_fields = ("title", "seo_title", "seo_description")
+    search_fields = ("title", "body", "seo_title", "seo_description")
     readonly_fields = ("key", "created_at", "updated_at")
-    inlines = (ContentSectionInline,)
     ordering = ("key",)
     fieldsets = (
         ("Страница", {"fields": ("key", "title", "created_at", "updated_at")}),
@@ -120,12 +38,25 @@ class ContentPageAdmin(ModelAdmin):
         return False
 
     def get_queryset(self, request):
-        return super().get_queryset(request).prefetch_related("sections")
+        return super().get_queryset(request).exclude(key=ContentPage.Key.CONTACTS)
 
-    def get_inline_instances(self, request, obj=None):
-        if obj and obj.key == ContentPage.Key.PRIVACY:
-            return []
-        return super().get_inline_instances(request, obj)
+    def get_fieldsets(self, request, obj=None):
+        if obj and obj.key != ContentPage.Key.PRIVACY:
+            description = (
+                "Этот текст отображается в разделе «О компании» на главной странице."
+                if obj.key == ContentPage.Key.HOME else "Введите текст для этой страницы."
+            )
+            return (
+                ("Содержимое страницы", {
+                    "fields": ("body",),
+                    "description": description + " Переносы строк и абзацы сохраняются.",
+                }),
+                ("Заголовок и поиск", {
+                    "fields": ("title", "seo_title", "seo_description"),
+                    "classes": ("collapse",),
+                }),
+            )
+        return super().get_fieldsets(request, obj)
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -157,17 +88,40 @@ class SingletonAdmin(ModelAdmin):
         return form
 
 
+class SiteLinkInline(StackedInline):
+    model = SiteLink
+    fields = ("name", "url", "image")
+    extra = 0
+
+    def has_add_permission(self, request, obj=None):
+        return request.user.has_perm("content.change_sitesettings")
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.has_perm("content.change_sitesettings")
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.has_perm("content.change_sitesettings")
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.has_perm("content.view_sitesettings") or self.has_change_permission(request, obj)
+
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
+        formset.form.base_fields["url"].help_text = "Пустая ссылка не отображается на сайте. Для внешнего сайта укажите полный адрес https://…"
+        formset.form.base_fields["image"].help_text = "Необязательный логотип: PNG, WebP или JPEG. Без изображения показывается название."
+        return formset
+
+
 @admin.register(SiteSettings)
 class SiteSettingsAdmin(SingletonAdmin):
+    inlines = (SiteLinkInline,)
     field_help_texts = {
         "opening_hours": "Переносы строк сохраняются. Пустое поле не показывает график.",
-        "footer_copy": "Пустое поле оставляет текущий безопасный текст подвала.",
         "footer_notice": "Пустое поле скрывает дополнительную подпись.",
     }
     fieldsets = (
         ("Контакты", {"fields": ("phone_primary", "phone_secondary", "email", "address", "opening_hours")}),
-        ("Ссылки", {"fields": ("whatsapp_url", "telegram_url", "vk_url")}),
-        ("Подвал сайта", {"fields": ("footer_copy", "footer_notice")}),
+        ("Подвал сайта", {"fields": ("footer_notice",)}),
     )
 
 

@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from catalog.models import Category, Product
 from .legal_documents import LEGAL_DOCUMENTS, render_legal_document
+from .contact_location import CONTACT_LOCATION
 from .models import ConsentRevision, ContentPage, HomepageRecommendation
 
 
@@ -33,17 +34,7 @@ PAGE_DEFAULTS = {
 
 
 def home(request):
-    page = ContentPage.objects.filter(key=ContentPage.Key.HOME).prefetch_related("sections").first()
-    sections = list(page.sections.all()) if page else []
-    section_map = {section.key: section for section in sections}
-    advantages = [
-        {"title": section.title, "description": section.body}
-        for section in sections
-        if section.key.startswith("advantage_") and (section.title or section.body.strip())
-    ]
-    hero = section_map.get("hero")
-    about = section_map.get("about")
-    contacts = section_map.get("contacts")
+    page = ContentPage.objects.filter(key=ContentPage.Key.HOME).first()
     published_products = Product.objects.published().select_related("category").prefetch_related("images")
     categories = (
         Category.objects.filter(products__is_published=True, products__integration_block_reason="")
@@ -66,14 +57,14 @@ def home(request):
         and not recommendation.product.integration_block_reason
     ]
     catalog_ready = Product.objects.published().exists()
-    hero_values = []
-    for key, icon, default_text in (
-        ("hero_value_1", "img/quality-raw-material.svg", "Сырье высочайшего качества"),
-        ("hero_value_2", "img/own-production.svg", "Собственное производство"),
-        ("hero_value_3", "img/modern-standards.svg", "Новейшие стандарты"),
-    ):
-        section = section_map.get(key)
-        hero_values.append({"icon": icon, "text": section.title if section and section.title else default_text})
+    hero_values = [
+        {"icon": icon, "text": text}
+        for icon, text in (
+            ("img/quality-raw-material.svg", "Сырье высочайшего качества"),
+            ("img/own-production.svg", "Собственное производство"),
+            ("img/modern-standards.svg", "Новейшие стандарты"),
+        )
+    ]
 
     return render(
         request,
@@ -86,34 +77,18 @@ def home(request):
                 if page and page.seo_description
                 else "Ассортимент рыбной продукции, розничные заявки и отдельный запрос для оптовых покупателей."
             ),
-            "home_sections": section_map,
             "home_title": page.title if page and page.title else "",
-            "hero_section": hero,
             "categories": categories,
             "featured_products": featured_products,
             "catalog_ready": catalog_ready,
             "hero_values": hero_values,
-            "advantages": advantages,
-            "about_summary": about.body if about else "",
-            "contact_summary": contacts.body if contacts else "",
-            "delivery_section": section_map.get("delivery"),
-            "home_steps": [
-                section for section in sections
-                if section.key in {"step_1", "step_2", "step_3"}
-                and (section.title or section.body.strip())
-            ],
+            "about_summary": page.body if page else "",
         },
     )
 
 
 def _page(request, *, key, title, description, notice, template="content/page.html", extra_context=None):
-    page = ContentPage.objects.filter(key=key).prefetch_related("sections").first()
-    sections = list(page.sections.all()) if page else []
-    lead = next((section for section in sections if section.key == "lead"), None)
-    substantive_sections = [
-        section for section in sections
-        if section.key != "lead" and (section.title or section.body.strip() or section.image)
-    ]
+    page = ContentPage.objects.filter(key=key).first()
     page_title = page.title if page and page.title else title
     return render(
         request,
@@ -123,8 +98,7 @@ def _page(request, *, key, title, description, notice, template="content/page.ht
             "seo_title": page.seo_title if page else "",
             "meta_description": page.seo_description if page and page.seo_description else description,
             "content_notice": notice,
-            "page_lead": lead,
-            "content_sections": substantive_sections,
+            "page_body": page.body if page else "",
             "breadcrumbs": [{"label": page_title}],
             **(extra_context or {}),
         },
@@ -157,7 +131,8 @@ def contacts(request):
         title=title,
         description=description,
         notice=notice,
-        extra_context={"show_contact_details": True},
+        template="content/contacts.html",
+        extra_context={"contact_location": CONTACT_LOCATION, "yandex_maps_api_key": settings.YANDEX_MAPS_API_KEY},
     )
 
 

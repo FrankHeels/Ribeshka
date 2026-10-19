@@ -1,0 +1,124 @@
+{
+  "date": "2026-10-19",
+  "generation": "built-in image_gen",
+  "vectorization": "Vectorize, one color, smoothing 1",
+  "final_color": "#D7B77B",
+  "max_reference": "https://max.ru/s/img/big-logo.png",
+  "assets": [
+    {
+      "name": "whatsapp",
+      "revision_id": "d2f8da3a8ded4102b3eb50c5b8ee5560",
+      "svg_url": "https://vectorize.stemonte.io/api/jobs/d2f8da3a8ded4102b3eb50c5b8ee5560/logo.svg",
+      "preview_url": "https://vectorize.stemonte.io/api/jobs/d2f8da3a8ded4102b3eb50c5b8ee5560/preview.png",
+      "preview_markdown": "![Vectorized logo preview](https://vectorize.stemonte.io/api/jobs/d2f8da3a8ded4102b3eb50c5b8ee5560/preview.png)",
+      "palette": [
+        "#ddb96f"
+      ],
+      "hidden_colors": [],
+      "width": 1258,
+      "height": 1258,
+      "bytes": 11198,
+      "warning": "",
+      "settings": {
+        "colors": 1,
+        "smoothing": 1,
+        "transparent": true,
+        "trim": false
+      },
+      "expires_in_seconds": 7200,
+      "prompt": "Use case: logo-brand. Asset: one production social/contact link icon for FishSite, a premium smoked-fish storefront with dark walnut wood backgrounds and warm antique brass accents. Create a crisp minimalist vector-friendly mark, single flat solid color #D7B77B, genuine transparent background. Square canvas, one centered isolated symbol occupying about 76% of canvas; equal generous safety margins. Flat graphic, smooth clean edges, confident rounded geometry, optically balanced weight, easily recognized at 32px. No text labels, captions, badge, frame, background tile, wood texture, metallic gradients, bevel, shadows, 3D, watermark, fish or extra decoration. Deliver only the requested icon, no presentation board. Subject: instantly recognizable WhatsApp symbol: an outlined round conversation bubble with short lower-left tail and the classic tilted telephone handset inside. Use matching medium-bold strokes and transparent interior. Preserve familiar WhatsApp proportions."
+    },
+    {
+      "name": "vkontakte",
+      "revision_id": "f65dff5a90d941aca284456bd295178e",
+      "svg_url": "https://vectorize.stemonte.io/api/jobs/f65dff5a90d941aca284456bd295178e/logo.svg",
+      "preview_url": "https://vectorize.stemonte.io/api/jobs/f65dff5a90d941aca284456bd295178e/preview.png",
+      "preview_markdown": "![Vectorized logo preview](https://vectorize.stemonte.io/api/jobs/f65dff5a90d941aca284456bd295178e/preview.png)",
+      "palette": [
+        "#d5b372"
+      ],
+      "hidden_colors": [],
+      "width": 1258,
+      "height": 1258,
+      "bytes": 5544,
+      "warning": "",
+      "settings": {
+        "colors": 1,
+        "smoothing": 1,
+        "transparent": true,
+        "trim": false
+      },
+      "expires_in_seconds": 7200,
+      "prompt": "Use case: logo-brand. Asset: one production social/contact link icon for FishSite, a premium smoked-fish storefront with dark walnut wood backgrounds and warm antique brass accents. Create a crisp minimalist vector-friendly mark, single flat solid color #D7B77B, genuine transparent background. Square canvas, one centered isolated symbol occupying about 76% of canvas; equal generous safety margins. Flat graphic, smooth clean edges, confident rounded geometry, optically balanced weight, easily recognized at 32px. No text labels, captions, badge, frame, background tile, wood texture, metallic gradients, bevel, shadows, 3D, watermark, fish or extra decoration. Deliver only the requested icon, no presentation board. Subject: instantly recognizable VK / Vkontakte emblem: the classic connected stylized Cyrillic ВК / Latin VK brand monogram, expressed as a single flat brass silhouette with smoothly joined strokes and crisp interior cutouts. This is the established VK logo shape, not two letters typed in a font, not a new monogram. No surrounding square or circle."
+    },
+    {
+      "name": "telegram",
+      "revision_id": "9f8163e084ae4dc1ae40b8da4b4d3c43",
+      "svg_url": "https://vectorize.stemonte.io/api/jobs/9f8163e084ae4dc1ae40b8da4b4d3c43/logo.svg",
+      "preview_url": "https://vectorize.stemonte.io/api/jobs/9f8163e084ae4dc1ae40b8da4b4d3c43/preview.png",
+      "preview_markdown": "![Vectorized logo preview](https://vectorize.stemonte.io/api/jobs/9f8163e084ae4dc1ae40b8da4b4d3c43/preview.png)",
+      "palette": [
+        "#d7b471"
+      ],
+      "hidden_colors": [],
+      "width": 1258,
+      "height": 1258,
+      "bytes": 5492,
+      "warning": "",
+      "settings": {
+        "colors": 1,
+        "smoothing": 1,
+        "transparent": true,
+        "trim": false
+      },
+      "expires_in_seconds": 7200,
+      "prompt": "Use case: logo-brand. Asset: one production social/contact link icon for FishSite, a premium smoked-fish storefront with dark walnut wood backgrounds and warm antique brass accents. Create a crisp minimalist vector-friendly mark, single flat solid color #D7B77B, genuine transparent background. Square canvas, one centered isolated symbol occupying about 76% of canvas; equal generous safety margins. Flat graphic, smooth clean edges, confident rounded geometry, optically balanced weight, easily recognized at 32px. No text labels, captions, badge, frame, background tile, wood texture, metallic gradients, bevel, shadows, 3D, watermark, fish or extra decoration. Deliver only the requested icon, no presentation board. Subject: instantly recognizable Telegram paper airplane pointing to the upper right, using the familiar broad triangular paper-plane silhouette with clear negative-space diagonal fold. No circle or background disc. Make its visual weight harmonious with medium-bold outlined messenger symbols."
+    },
+    {
+      "name": "max",
+      "revision_id": "5f2ec4b5278642b6a8043c3be5200f23",
+      "svg_url": "https://vectorize.stemonte.io/api/jobs/5f2ec4b5278642b6a8043c3be5200f23/logo.svg",
+      "preview_url": "https://vectorize.stemonte.io/api/jobs/5f2ec4b5278642b6a8043c3be5200f23/preview.png",
+      "preview_markdown": "![Vectorized logo preview](https://vectorize.stemonte.io/api/jobs/5f2ec4b5278642b6a8043c3be5200f23/preview.png)",
+      "palette": [
+        "#d4b374"
+      ],
+      "hidden_colors": [],
+      "width": 1258,
+      "height": 1258,
+      "bytes": 5556,
+      "warning": "",
+      "settings": {
+        "colors": 1,
+        "smoothing": 1,
+        "transparent": true,
+        "trim": false
+      },
+      "expires_in_seconds": 7200,
+      "prompt": "Use case: logo-brand. Asset: one production social/contact link icon for FishSite, a premium smoked-fish storefront with dark walnut wood backgrounds and warm antique brass accents. Create a crisp minimalist vector-friendly mark, single flat solid color #D7B77B, genuine transparent background. Square canvas, one centered isolated symbol occupying about 76% of canvas; equal generous safety margins. Flat graphic, smooth clean edges, confident rounded geometry, optically balanced weight, easily recognized at 32px. No text labels, captions, badge, frame, background tile, wood texture, metallic gradients, bevel, shadows, 3D, watermark, fish or extra decoration. Deliver only the requested icon, no presentation board. Input image 1 is an official MAX messenger shape reference only, not a background or color reference. Reproduce the recognizable MAX hollow rounded speech-loop mark with the distinctive thick rounded lower-left tail and large transparent inner opening. Change its white color to flat #D7B77B. Remove the entire purple-blue rounded-square tile: all outside space and the inside opening must be fully transparent. Preserve official mark proportions and smooth geometry. Not HBO Max lettering, not an M, not a telephone."
+    },
+    {
+      "name": "email",
+      "revision_id": "f078b70aad3940fa99a46541abbe8a10",
+      "svg_url": "https://vectorize.stemonte.io/api/jobs/f078b70aad3940fa99a46541abbe8a10/logo.svg",
+      "preview_url": "https://vectorize.stemonte.io/api/jobs/f078b70aad3940fa99a46541abbe8a10/preview.png",
+      "preview_markdown": "![Vectorized logo preview](https://vectorize.stemonte.io/api/jobs/f078b70aad3940fa99a46541abbe8a10/preview.png)",
+      "palette": [
+        "#d5b473"
+      ],
+      "hidden_colors": [],
+      "width": 1258,
+      "height": 1258,
+      "bytes": 5918,
+      "warning": "",
+      "settings": {
+        "colors": 1,
+        "smoothing": 1,
+        "transparent": true,
+        "trim": false
+      },
+      "expires_in_seconds": 7200,
+      "prompt": "Use case: logo-brand. Asset: one production social/contact link icon for FishSite, a premium smoked-fish storefront with dark walnut wood backgrounds and warm antique brass accents. Create a crisp minimalist vector-friendly mark, single flat solid color #D7B77B, genuine transparent background. Square canvas, one centered isolated symbol occupying about 76% of canvas; equal generous safety margins. Flat graphic, smooth clean edges, confident rounded geometry, optically balanced weight, easily recognized at 32px. No text labels, captions, badge, frame, background tile, wood texture, metallic gradients, bevel, shadows, 3D, watermark, fish or extra decoration. Deliver only the requested icon, no presentation board. Subject: generic email/contact icon, an elegant horizontally proportioned closed envelope with softly rounded rectangle outline and a clear diagonal V-shaped flap. Match the medium-bold rounded stroke weight and optical size of WhatsApp outline. Use transparent interior, no letters, no @ sign, no provider logo, no enclosing badge."
+    }
+  ]
+}

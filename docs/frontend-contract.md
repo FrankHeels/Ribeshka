@@ -28,12 +28,16 @@ owner panel; see [notifications](wiki/notifications.md).
 - `navigation_categories`: categories with at least one published product, ordered
   by `display_order`, name, and primary key. The shared assortment menu uses them
   on every page.
-- `site_settings`: singleton contacts, opening hours, social links and footer copy;
+- `site_settings`: singleton contacts, opening hours and footer signature;
+- `site_links`: lazy ordered collection of named links with optional uploaded logos; blank URLs are omitted;
   blank values hide the corresponding detail. Provided on every page by the
   content context processor; never duplicate those values in editorial text.
 
 The base template owns the document language, viewport, shared navigation,
 footer, skip link, breadcrumb navigation, stylesheet, and metadata.
+The header does not display a phone number. On the homepage, `site_links`
+appear only inside the contact panel, below its contact details; each link
+remains independent of the panel's contact-page title link.
 Provide category and product titles and descriptions from published records,
 add only published category/product URLs to the sitemap, and supply appropriately
 sized images with meaningful alt text. There is no public `/catalog/` index page.
@@ -42,7 +46,7 @@ sized images with meaningful alt text. There is no public `/catalog/` index page
 
 | Route name | Template | Required context |
 |---|---|---|
-| `home` | `home.html` | `catalog_ready`, all public `categories`, `featured_products`, `home_title`, `home_sections`, `hero_section`, `delivery_section`, `home_steps`, `about_summary`, `advantages`, and `contact_summary`. Category cards use published records; home text comes from fixed content blocks. Company and contact text must be confirmed by the client. |
+| `home` | `home.html` | `catalog_ready`, all public `categories`, `featured_products`, `home_title`, fixed `hero_values` and `about_summary` from the single `ContentPage.body`. Category cards use published records; composition, hero copy, captions and inquiry steps are fixed. Company and contact text must be confirmed by the client. |
 | `catalog:category` | `catalog/category.html` | A real `category`, its directly assigned published `products`, breadcrumbs for home/current category, optional `page_obj` and `catalog_error`. Resolve unknown slugs as 404; do not expose unpublished products. |
 | `catalog:product` | `catalog/product.html` | A real published `product`, `forms_enabled=True`, `field_errors`, optional `field_ids`, `initial_weight`, and breadcrumbs. The initial weight is always 1 kg to add; invalid POST responses preserve the submitted value. The legend and button always say `Добавить в корзину`. Resolve unknown or unpublished products as 404. Adding the same product increases the line's weight. |
 | `orders:cart` | `orders/cart.html` | Current `cart_items`, `forms_enabled=True`, server `cart_total`, `cart_total_is_valid`, `cart_error`, generic `cart_issues`, `submission`, optional `values`, `field_errors`, `form_errors`, `price_changed`, `cart_changes`, and breadcrumbs. The retail contact form is below the total. |
@@ -50,7 +54,8 @@ sized images with meaningful alt text. There is no public `/catalog/` index page
 | `orders:success` | `orders/success.html` | Verify existence by the unguessable URL token; unknown tokens return 404. Render `Заявка получена` and explain that the manager will confirm availability, quantity and cost. No request object, number, PK, external UUID or contacts in context/HTML/headers. |
 | `inquiries:wholesale` | `inquiries/wholesale.html` | `forms_enabled=True`, signed `submission`, optional submitted `values`, `field_errors`, and form-level `form_errors`. |
 | `inquiries:success` | `inquiries/success.html` | Verify existence by the separate UUID token; unknown/malformed tokens return 404. Render the generic wholesale acceptance message; apply the same identifier restrictions as retail. |
-| `content:about`, `content:delivery`, `content:contacts` | `content/page.html` (`delivery` extends it) | `page_lead` as the optional lead section (title/body), and `content_sections` as an ordered sequence of `{title, body}` or an accurate `content_notice` while client material is missing. |
+| `content:about`, `content:delivery` | `content/page.html` (`delivery` extends it) | `page_body` from the single `ContentPage.body`, or an accurate `content_notice` while client material is missing. The delivery map remains below its page text. |
+| `content:contacts` | `content/contacts.html` | Heading and gold divider, phone and `site_links` at left; hours and address at right. Optional email follows the links. The archived contact page body is not rendered; contacts are edited only in general settings. At narrow widths columns stack. `contact_location` supplies the fixed Guryevsk, Kashtanovaya 1B marker, address and external map/directions links below the contacts. `yandex_maps_api_key` is safely serialized only when configured; the map is a progressive enhancement with an address/link fallback. See [map configuration](delivery-map.md). No separate automatic contact card. |
 | `content:privacy`, `content:personal_data_consent`, `content:yandex_metrica_consent` | `content/legal.html` | `legal_html` rendered from allowlisted repository Markdown, `legal_draft_notice`, `legal_navigation` with current-page indication, breadcrumbs and draft `meta_robots`. Privacy keeps CMS title/SEO; its body always comes from Markdown. |
 | `content:consent_revision` | `content/legal.html` | Exact archived consent text plus `legal_revision` with registered identifier, timestamp and SHA-256; unknown IDs return 404. |
 
@@ -58,19 +63,25 @@ sized images with meaningful alt text. There is no public `/catalog/` index page
 
 `categories` contains `{name, slug}` records, optionally `image` with `url` and
 `alt_text`. The homepage displays all categories that have published products,
-up to 2 featured products, and up to 4 confirmed advantages. The shared header
+and up to 2 featured products. The shared header
 menu exposes the same categories on every page and links back to the homepage
 assortment section. Category pages contain each category's published products.
 The hero displays three approved promises with decorative SVG icons: raw-material
 quality, own production, and modern standards. Below 900 px they follow the
-introductory copy and action. `hero_values` supplies editable promise captions
+introductory copy and action. `hero_values` supplies fixed promise captions
 and local decorative icons. The cover has no uploaded image or separate settings
 model. Its action is fixed in the template: «Перейти к ассортименту» with
 `href="#assortment"`. Legacy cover/image/button context cannot override it.
-The default hero copy invites an inquiry; editable `hero_section.body` takes precedence.
+The fixed hero copy introduces fish for home meals, celebrations and business.
+The about section uses the homepage's single editable body (`about_summary`),
+with a default introduction to «Калининградская рыбёшка» when empty. Its fixed
+companion note explains personal help with selection, quantity and receipt.
+There is no section constructor or upload on page editors, including home.
+Title and SEO remain in a separate collapsed group. The footer's «Информация»
+navigation places «Ассортимент», «О компании», «Доставка», «Контакты» in the left list and all three legal documents in the right list. Cart access remains in the header as an icon with an accessible name and optional quantity badge. Desktop and mobile wholesale navigation use «Опт».
 A separate notice before the hero action always explains that prices are indicative,
 the manager confirms availability of the requested quantity and the final cost,
-and submitting an inquiry does not reserve goods. Editing the hero copy does not
+and submitting an inquiry does not reserve goods. The page text editor does not
 remove this notice; it remains fully readable on narrow screens.
 `featured_products` follows the two explicit `HomepageRecommendation` slots;
 unpublished, blocked or empty slots are omitted without replacement. These are
@@ -128,9 +139,6 @@ immediately on the next request with a recalculated preliminary sum. An optional
 Never reveal the title or other details of an unpublished item in
 a public cart error; use a generic `cart_issues_message` and require the user
 to review the cart again.
-
-`advantages` entries on the homepage are confirmed `{title, description?}`
-statements. Keep the sequence empty until those statements are supplied.
 
 ## Form behavior and errors
 
@@ -225,14 +233,32 @@ product name or its data while explaining a cart change.
 - `content:about`, `content:delivery`, `content:contacts`, `content:privacy`
 - `content:personal_data_consent`, `content:yandex_metrica_consent`
 
+## Contact links and footer
+
+`SiteLink` rows belong to the singleton settings. Each has name, URL and optional
+validated JPEG/PNG/WebP logo. The settings inline allows adding/deleting links
+using the existing settings-change permission. Empty URL rows are hidden; without
+an image the anchor displays its name, and with an image it displays a 32px logo
+inside a minimum 44px target. An accessible name is always retained. Links appear
+on contacts and home, with no external content fetching. Existing fixed messenger
+URLs are migrated once; their old fields remain archived and are no longer edited.
+
+The footer follows the supplied reference: original brand logo at left and two
+navigation columns beside it: four site links at left and three legal links at right.
+There is no wholesale link in the footer. It contains no phone, email, address,
+hours, social links or explanatory text under the logo. The saved footer
+signature stays in the lower row. The old footer-copy setting is archived.
+
 ## Content persistence boundary
 
 Five fixed ContentPage keys map to the existing routes only. The view loads a
-page and all sections in two queries, then uses an in-memory key map. No content
-cache is configured. The template fixes the home composition; display_order
-sorts advantages/steps and information sections, with PK as a stable tie-breaker.
-The reserved lead block remains the introduction. Empty sections are not shown
-as technical keys. Existing neutral UI fallbacks remain when material is missing.
+page in one query without legacy section queries. No content cache is configured.
+Home/about/delivery have one editable `body`; home renders it in its about section.
+The contacts record remains archived and excluded from the page admin queryset,
+including direct edits; its body does not affect the public contact layout. Legacy `ContentSection` rows and uploaded files are preserved as
+an archive and do not affect public output. Migration 0008 copies information
+page texts in lead-first/display-order sequence and the home about text.
+Existing neutral UI fallbacks remain when material is missing.
 All stored text is escaped, with paragraph/line-break filters; never apply safe.
 See [data-layer.md](data-layer.md) for fixed keys, migrations and ORM boundaries.
 

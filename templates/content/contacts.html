@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load static %}
+{% block body_class %}contacts-page{% endblock %}
+{% block content %}
+  <section class="contacts-panel" aria-labelledby="contacts-title">
+    <header class="contacts-heading"><h1 id="contacts-title">{{ page_title }}</h1></header>
+    <div class="contacts-grid">
+      <div class="contacts-primary">
+        {% if site_settings.phone_primary %}<a class="contacts-phone" href="tel:{{ site_settings.phone_primary|cut:' '|cut:'-'|cut:'('|cut:')' }}">{{ site_settings.phone_primary }}</a>{% endif %}
+        {% if site_settings.phone_secondary and site_settings.phone_secondary != site_settings.phone_primary %}<a class="contacts-phone contacts-phone-secondary" href="tel:{{ site_settings.phone_secondary|cut:' '|cut:'-'|cut:'('|cut:')' }}">{{ site_settings.phone_secondary }}</a>{% endif %}
+        {% include "partials/site-links.html" %}
+        {% if site_settings.email %}<a class="contacts-email" href="mailto:{{ site_settings.email }}">{{ site_settings.email }}</a>{% endif %}
+      </div>
+      {% if site_settings.opening_hours or site_settings.address %}<div class="contacts-schedule">
+        {% if site_settings.opening_hours %}<div>{{ site_settings.opening_hours|linebreaks }}</div>{% endif %}
+        {% if site_settings.address %}<p>{{ site_settings.address }}</p>{% endif %}
+      </div>{% endif %}
+    </div>
+    {% if not site_settings.phone_primary and not site_settings.phone_secondary and not site_settings.email and not site_settings.address and not site_settings.opening_hours and not site_links %}<p class="contacts-empty">{{ content_notice }}</p>{% endif %}
+  </section>
+  <section class="contact-map-section" aria-labelledby="contact-map-title" data-contact-map>
+    <div class="contact-map-heading">
+      <div><h2 id="contact-map-title">Как нас найти</h2><p>{{ contact_location.address }}</p></div>
+      <a class="button button-secondary" href="{{ contact_location.directions_url }}" target="_blank" rel="noopener noreferrer">Построить маршрут <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
+    </div>
+    <div class="contact-map-frame">
+      <div id="contact-map" class="contact-map-canvas" role="region" aria-label="Карта: {{ contact_location.address }}" hidden></div>
+      <div class="contact-map-fallback" data-map-fallback>
+        <p role="status" data-map-status>Интерактивная карта сейчас недоступна. Адрес: {{ contact_location.address }}.</p>
+        <a href="{{ contact_location.map_url }}" target="_blank" rel="noopener noreferrer">Открыть в Яндекс Картах</a>
+        <noscript><p>Для интерактивной карты включите JavaScript или воспользуйтесь ссылкой выше.</p></noscript>
+      </div>
+    </div>
+    <div class="contact-map-controls" data-map-controls hidden role="group" aria-label="Управление картой адреса">
+      <button type="button" class="button button-secondary" data-map-zoom="1" aria-label="Приблизить карту">+</button>
+      <button type="button" class="button button-secondary" data-map-zoom="-1" aria-label="Отдалить карту">−</button>
+      <button type="button" class="button button-secondary" data-map-reset aria-label="Вернуться к метке" title="Вернуться к метке"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg></button>
+      <a href="{{ contact_location.map_url }}" target="_blank" rel="noopener noreferrer">Открыть в Яндекс Картах</a>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  {% if yandex_maps_api_key %}
+    {{ yandex_maps_api_key|json_script:"yandex-maps-api-key" }}
+    {{ contact_location|json_script:"contact-map-location" }}
+    <script type="module" src="{% static 'js/contact-map.js' %}?v=2026-10-19-2"></script>
+  {% endif %}
+{% endblock %}
