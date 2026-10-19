@@ -3,13 +3,13 @@
 # `settings_test` использует изолированный PostgreSQL на 127.0.0.1:15432; обычная БД и её настройки не используются.
 # Каждый метод наследует Django `TestCase`: запросы выполняются встроенным тестовым клиентом, а изменения БД откатываются.
 # Ключ карты задаётся локально через `override_settings`; ответы проверяются по HTML и assertions, без браузера и внешнего API.
-"""Delivery-only API configuration and progressive-enhancement contract."""
+"""Delivery map configuration and progressive-enhancement contract."""
 import json
 import re
 
 from django.test import TestCase, override_settings
 
-from content.models import ContentPage, ContentSection
+from content.models import ContentPage
 
 
 class DeliveryMapTests(TestCase):
@@ -35,11 +35,11 @@ class DeliveryMapTests(TestCase):
         self.assertEqual(json.loads(data), 'test-key</script><script>alert("x")</script>&')
         self.assertNotIn('<script>alert("x")</script>', html)
 
-    # На главной, страницах «О компании», контактов, политики, корзины и оптовой заявки (каждый путь — subTest)
+    # На главной, страницах «О компании», политики, корзины и оптовой заявки (каждый путь — subTest)
     # ответ имеет статус 200 и не содержит синтетический ключ, JS карты или маркер блока карты.
     @override_settings(YANDEX_MAPS_API_KEY="synthetic-map-key")
     def test_other_pages_do_not_receive_map_or_key(self):
-        for path in ("/", "/about/", "/contacts/", "/privacy/", "/cart/", "/wholesale/"):
+        for path in ("/", "/about/", "/privacy/", "/cart/", "/wholesale/"):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
@@ -47,10 +47,10 @@ class DeliveryMapTests(TestCase):
                 self.assertNotContains(response, "js/delivery-map.js")
                 self.assertNotContains(response, "data-delivery-map")
 
-    # Добавленный к материалам доставки раздел с display_order=999 отображается в HTML раньше блока карты,
-    # то есть карта следует за всеми материалами страницы.
+    # Карта следует за единым редактируемым текстом страницы доставки.
     def test_map_follows_all_delivery_materials(self):
         page = ContentPage.objects.get(key=ContentPage.Key.DELIVERY)
-        ContentSection.objects.create(page=page, key="delivery_test", title="Условия самовывоза", body="Последний материал доставки", display_order=999)
+        page.body = "Последний материал доставки"
+        page.save(update_fields=["body"])
         html = self.client.get("/delivery/").content.decode()
         self.assertLess(html.index("Последний материал доставки"), html.index("data-delivery-map"))

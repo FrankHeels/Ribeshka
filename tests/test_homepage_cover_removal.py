@@ -106,7 +106,7 @@ class HomepageContentPreservationTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.home, _ = ContentPage.objects.update_or_create(
-            key="home", defaults={"title": "Наш редактируемый заголовок"},
+            key="home", defaults={"title": "Наш редактируемый заголовок", "body": "Наш единый текст главной"},
         )
         cls.hero, _ = ContentSection.objects.update_or_create(
             page=cls.home, key="hero",
@@ -128,13 +128,13 @@ class HomepageContentPreservationTests(TestCase):
         HomepageRecommendation.objects.update_or_create(slot=1, defaults={"product": cls.product})
         HomepageRecommendation.objects.update_or_create(slot=2, defaults={"product": None})
 
-    # GET главной сохраняет собственные заголовок, текст, преимущества и товар;
+    # GET главной сохраняет заголовок, единый текст, общие контакты и товар;
     # старые context-поля и запрос к таблице настроек обложки больше не нужны.
     def test_home_keeps_editable_content_without_obsolete_context_or_query(self):
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(reverse("home"))
         self.assertEqual(response.status_code, 200)
-        for text in [self.home.title, self.hero.title, self.hero.body, *self.benefits, self.site.phone_primary]:
+        for text in [self.home.title, self.home.body, self.site.phone_primary]:
             self.assertContains(response, text)
         self.assertEqual(response.context["featured_products"], [self.product])
         self.assertContains(response, self.product.name)
@@ -148,7 +148,7 @@ class HomepageContentPreservationTests(TestCase):
             ), "Главная всё ещё обращается к удаляемой таблице content_homepagesettings.")
 
     # Обычный владелец после синхронизации роли продолжает открывать формы страницы
-    # с hero/hero_value, общие настройки и выбор рекомендуемых товаров через OTP-admin.
+    # с единым текстом, общие настройки и выбор рекомендуемых товаров через OTP-admin.
     def test_owner_keeps_access_to_page_sections_site_settings_and_recommendations(self):
         owner = get_user_model().objects.create_user(username="cover-removal-owner")
         call_command("sync_backoffice_roles", owner.username, stdout=StringIO())
@@ -158,15 +158,8 @@ class HomepageContentPreservationTests(TestCase):
         page_response = self.client.get(reverse("admin:content_contentpage_change", args=(self.home.pk,)))
         self.assertEqual(page_response.status_code, 200)
         self.assertFalse(page_response.context["adminform"].form.fields["title"].disabled)
-        section_forms = {
-            form.instance.key: form
-            for inline in page_response.context["inline_admin_formsets"]
-            for form in inline.formset.forms
-        }
-        self.assertFalse(section_forms["hero"].fields["title"].disabled)
-        self.assertFalse(section_forms["hero"].fields["body"].disabled)
-        for key in ("hero_value_1", "hero_value_2", "hero_value_3"):
-            self.assertFalse(section_forms[key].fields["title"].disabled)
+        self.assertFalse(page_response.context["adminform"].form.fields["body"].disabled)
+        self.assertEqual(page_response.context["inline_admin_formsets"], [])
         for route, args in (
             ("admin:content_sitesettings_change", (1,)),
             ("admin:content_homepagerecommendation_changelist", ()),

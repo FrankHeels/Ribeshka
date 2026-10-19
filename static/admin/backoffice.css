@@ -38,6 +38,22 @@ textarea {
   font-family: "Golos Text", system-ui, sans-serif;
 }
 
+:root {
+  --backoffice-divider: #dcd4c4;
+  --backoffice-surface: #fff;
+  --backoffice-inset: #f8f6f0;
+  --backoffice-muted: #625d52;
+  --backoffice-accent: #765820;
+}
+
+html.dark {
+  --backoffice-divider: #514a3b;
+  --backoffice-surface: #24231f;
+  --backoffice-inset: #1b1c19;
+  --backoffice-muted: #c5bfb3;
+  --backoffice-accent: #e6c783;
+}
+
 body :focus-visible {
   outline: 3px solid #aa813a !important;
   outline-offset: 2px;
@@ -577,4 +593,163 @@ html.dark .moysklad-dashboard {
   .moysklad-owner-dashboard .backoffice-shortcuts { align-items: stretch; flex-direction: column; }
   .moysklad-owner-dashboard .backoffice-shortcuts .button { justify-content: center; width: 100%; }
   .moysklad-summary-heading { align-items: flex-start; flex-direction: column; }
+}
+
+/* Shared layout for the owner overview, lists, content and request forms. */
+.backoffice-dashboard:not(.moysklad-dashboard) {
+  font-size: max(1rem, 16px);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.backoffice-dashboard:not(.moysklad-dashboard) > * { margin-bottom: 1.75rem; }
+.backoffice-dashboard:not(.moysklad-dashboard) .backoffice-card,
+.backoffice-dashboard:not(.moysklad-dashboard) .backoffice-page-intro { padding: clamp(1.25rem, 3vw, 2rem); }
+.backoffice-dashboard:not(.moysklad-dashboard) .backoffice-card > h2 {
+  border-bottom: 1px solid var(--backoffice-divider);
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+}
+
+.backoffice-dashboard:not(.moysklad-dashboard) p { margin: 1rem 0; max-width: 75ch; }
+.backoffice-dashboard:not(.moysklad-dashboard) .backoffice-eyebrow { margin-top: 0; }
+.backoffice-dashboard:not(.moysklad-dashboard) .backoffice-stat-grid,
+.backoffice-dashboard:not(.moysklad-dashboard) .backoffice-recent-grid { gap: 1.5rem; }
+.backoffice-dashboard:not(.moysklad-dashboard) .backoffice-stat-card { gap: 1rem; padding: 1.5rem; }
+.backoffice-dashboard:not(.moysklad-dashboard) .backoffice-stat-card strong { font-size: 2.2rem; font-variant-numeric: tabular-nums; }
+.backoffice-dashboard:not(.moysklad-dashboard) .backoffice-shortcuts { gap: 1rem; }
+.backoffice-dashboard:not(.moysklad-dashboard) .backoffice-shortcuts .button { justify-content: center; max-width: 100%; min-height: 48px; white-space: normal; }
+.backoffice-recent-grid li { border-color: var(--backoffice-divider); gap: 0.75rem 1rem; grid-template-columns: minmax(0, 1fr) auto; padding: 1.25rem 0; }
+.backoffice-recent-grid li:first-child { border-top: 0; padding-top: 0; }
+.backoffice-recent-grid li:last-child { padding-bottom: 0; }
+.backoffice-recent-grid li time { color: var(--backoffice-muted); font-size: max(1rem, 16px); grid-column: 1; grid-row: 2; }
+.backoffice-recent-grid .backoffice-status-pill { align-self: center; font-size: max(0.9rem, 14px); grid-column: 2; grid-row: 1 / span 2; justify-self: start; white-space: normal; }
+html.dark .backoffice-recent-grid .backoffice-status-pill { color: #6d5128; }
+.backoffice-dashboard:not(.moysklad-dashboard) .form-row {
+  background: var(--backoffice-inset);
+  border: 1px solid var(--backoffice-divider);
+  border-radius: 0.75rem;
+  margin: 0 0 1.5rem;
+  padding: 1.25rem;
+}
+
+.backoffice-dashboard:not(.moysklad-dashboard) .help {
+  color: var(--backoffice-muted);
+  font-size: max(1rem, 16px);
+  line-height: 1.65;
+  margin-top: 1rem;
+}
+
+.backoffice-dashboard:not(.moysklad-dashboard) .submit-row { border-top: 1px solid var(--backoffice-divider); margin-top: 1.5rem; padding-top: 1.25rem; }
+
+/* Keep Unfold's tabs and widgets intact; style their existing semantic groups. */
+body.change-form #content fieldset.module {
+  background: var(--backoffice-surface);
+  border: 1px solid var(--backoffice-divider);
+  border-radius: 1rem;
+  min-width: 0;
+  padding: 1.25rem;
+}
+
+body.change-form #content fieldset.module > h2,
+body.change-form #content fieldset.module > details > summary > h2 {
+  background: transparent;
+  border-bottom: 1px solid var(--backoffice-divider);
+  border-radius: 0;
+  font-size: 1.15rem;
+  height: auto;
+  line-height: 1.5;
+  margin: 0 0 1.25rem;
+  min-height: 44px;
+  padding: 0 0 1rem;
+}
+
+body.change-form #content .form-rows { border: 0; box-shadow: none; }
+body.change-form #content .field-row .field-line {
+  border-bottom-color: var(--backoffice-divider);
+  border-bottom-style: solid;
+  gap: 1rem;
+  padding: 1.25rem 0;
+}
+
+body.change-form #content .field-row:first-child .field-line { padding-top: 0; }
+body.change-form #content .field-row:last-child .field-line { border-bottom: 0; padding-bottom: 0; }
+body.change-form #content .field-line > div:first-child { height: auto; line-height: 1.5; }
+body.change-form #content .field-line > .grow { min-width: 0; }
+body.change-form #content .field-line label { font-size: max(1rem, 16px); height: auto; line-height: 1.5; }
+body.change-form #content .errorlist { font-size: max(1rem, 16px); line-height: 1.65; }
+body.change-form #content .field-line input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+body.change-form #content .field-line select,
+body.change-form #content .field-line textarea { font-size: max(1rem, 16px); min-height: 44px; }
+body.change-form #content .field-line textarea { line-height: 1.65; }
+body.change-form #content .field-line .readonly {
+  background: var(--backoffice-inset);
+  border: 1px solid var(--backoffice-divider);
+  border-radius: 0.6rem;
+  font-size: max(1rem, 16px);
+  line-height: 1.65;
+  min-height: 44px;
+  overflow-wrap: anywhere;
+  padding: 0.85rem 1rem;
+}
+
+body.change-form #content .field-line .help,
+body.change-form #content .backoffice-field-help {
+  background: var(--backoffice-inset);
+  border-left: 3px solid var(--backoffice-divider);
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: var(--backoffice-muted);
+  font-size: max(1rem, 16px);
+  line-height: 1.65;
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+}
+
+body.change-form #content form nav { flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem 0; }
+body.change-form #content form nav > a { border-radius: 0.6rem 0.6rem 0 0; font-size: max(1rem, 16px); min-height: 44px; padding: 0.75rem 1rem; }
+body.change-form #content form nav > a.active { background: var(--backoffice-surface); box-shadow: inset 0 -3px var(--backoffice-accent); }
+body.change-form #content [data-inline-type="stacked"] .inline-related { border: 1px solid var(--backoffice-divider); border-radius: 0.75rem; margin-bottom: 1.5rem; padding: 1.25rem; }
+body.change-form #content .readonly .moysklad-facts { gap: 0; margin: 0; }
+body.change-form #content .readonly .moysklad-facts dt,
+body.change-form #content .readonly .moysklad-facts dd { border-bottom: 1px solid var(--backoffice-divider); padding: 1rem 0.75rem; }
+body.change-form #content .readonly .moysklad-facts dt:last-of-type,
+body.change-form #content .readonly .moysklad-facts dd:last-of-type { border-bottom: 0; }
+body.change-form #footer { border-top: 1px solid var(--backoffice-divider); }
+body.change-form button[type="submit"] { min-height: 44px; }
+
+/* Tables scroll in their own existing wrapper instead of widening the page. */
+body.change-list #changelist table,
+body.change-form #content .tabular table { font-size: max(1rem, 16px); line-height: 1.6; }
+body.change-list #result_list thead th,
+body.change-form #content .tabular thead th {
+  background: var(--backoffice-inset);
+  border-bottom: 2px solid var(--backoffice-divider);
+  font-weight: 700;
+  padding: 1rem;
+}
+
+body.change-list #result_list tbody td,
+body.change-list #result_list tbody th,
+body.change-form #content .tabular tbody td {
+  border-bottom: 1px solid var(--backoffice-divider);
+  padding: 1.15rem 1rem;
+  vertical-align: top;
+}
+
+body.change-list #result_list tbody tr:nth-child(even) { background: var(--backoffice-inset); }
+body.change-list #result_list .field-name,
+body.change-list #result_list .field-title { max-width: 30rem; min-width: 12rem; white-space: normal; }
+body.change-list #changelist-filter details { border-bottom: 1px solid var(--backoffice-divider); margin-bottom: 1.25rem; padding-bottom: 1.25rem; }
+
+@media (max-width: 42rem) {
+  .backoffice-recent-grid li { grid-template-columns: minmax(0, 1fr); }
+  .backoffice-recent-grid .backoffice-status-pill { grid-column: 1; grid-row: auto; }
+  .backoffice-dashboard:not(.moysklad-dashboard) .backoffice-shortcuts { align-items: stretch; flex-direction: column; }
+  .backoffice-dashboard:not(.moysklad-dashboard) .backoffice-shortcuts .button { width: 100%; }
+  body.change-form #content fieldset.module { padding: 1rem; }
+  body.change-form #content .field-row .field-line { gap: 0.65rem; padding: 1.25rem 0; }
+  body.change-form #content .readonly .moysklad-facts dt { border-bottom: 0; padding-bottom: 0.35rem; }
+  body.change-form #content .readonly .moysklad-facts dd { padding-top: 0; }
 }
