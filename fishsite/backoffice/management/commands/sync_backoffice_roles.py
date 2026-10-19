@@ -18,8 +18,8 @@ OWNER_PERMISSIONS = {
         "view_homepagerecommendation", "change_homepagerecommendation",
         "view_consentrevision",
     ),
-    "orders": ("view_order", "change_order", "view_orderitem"),
-    "inquiries": ("view_inquiry", "change_inquiry"),
+    "orders": ("view_order", "view_orderitem"),
+    "inquiries": ("view_inquiry",),
     "integrations": (
         "view_moyskladproduct", "view_moyskladorderlink", "view_moyskladsyncstate",
         "link_moysklad_product", "create_moysklad_candidate",

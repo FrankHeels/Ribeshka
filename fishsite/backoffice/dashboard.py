@@ -23,9 +23,9 @@ def dashboard_callback(request, context):
                 context["moysklad_configured"] = True
     context["has_content_access"] = user.has_perm("content.view_contentpage")
     if context["has_retail_access"]:
-        context["unseen_retail_count"] = Order.objects.filter(viewed_at__isnull=True).count()
+        context["retail_count"] = Order.objects.count()
         context["recent_retail_requests"] = list(
-            Order.objects.order_by("-created_at", "-pk").values("pk", "order_number", "created_at", "viewed_at")[:5]
+            Order.objects.order_by("-created_at", "-pk").values("pk", "order_number", "created_at")[:5]
         )
     if context["has_wholesale_access"]:
         context["wholesale_count"] = Inquiry.objects.count()

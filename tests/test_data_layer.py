@@ -325,20 +325,18 @@ class ContentTests(TestCase):
         with self.assertRaises(ValidationError):
             section.save()
 
-    # Отдать /about/ страницу из БД с SEO-полями и двумя блоками: проверить
-    # лимит в 4 SQL-запроса, экранирование описания и script-текста, разбиение
-    # безопасного текста на абзац и сортировку блоков по display_order.
+    # Единый текст страницы сохраняет абзацы и экранирование HTML; прежние
+    # блоки не участвуют в показе. Страница с SEO укладывается в 3 запроса.
     def test_info_page_content_order_seo_and_safe_paragraphs(self):
         page = self.page("about")
         page.title = "Тестовая страница"
         page.seo_title = "Тестовый SEO-заголовок"
         page.seo_description = 'Описание "тест" <script>'
+        page.body = 'Абзац один\n\n<script>alert("x")</script>'
         page.save()
         ContentSection.objects.create(page=page, key="late", title="Поздний блок", body="Поздний текст", display_order=200)
         ContentSection.objects.create(page=page, key="early", title="Первый блок", body='Абзац один\n\n<script>alert("x")</script>', display_order=100)
-        # The shared navigation loads published categories in addition to the
-        # page and its sections.
-        with self.assertNumQueries(4):
+        with self.assertNumQueries(3):
             response = self.client.get("/about/")
         self.assertContains(response, "Тестовая страница")
         self.assertContains(response, "Тестовый SEO-заголовок")
@@ -346,21 +344,21 @@ class ContentTests(TestCase):
         self.assertContains(response, "<p>Абзац один</p>", html=True)
         self.assertNotContains(response, '<script>alert("x")</script>')
         self.assertContains(response, "&lt;script&gt;alert")
-        html = response.content.decode()
-        self.assertLess(html.index("Первый блок"), html.index("Поздний блок"))
+        self.assertNotContains(response, "Первый блок")
+        self.assertNotContains(response, "Поздний блок")
 
     # Для home, about, delivery, contacts и privacy записать отдельный заголовок;
     # для каждого маршрута проверить HTTP 200, показ заголовка и фиксированный
-    # предел: 6 запросов для главной и 4 для информационной страницы.
+    # предел: 6 запросов для главной, 4 для контактов, 3 для остальных.
     def test_all_content_routes_read_database_and_remain_bounded(self):
         for key, path in (("home", "/"), ("about", "/about/"), ("delivery", "/delivery/"), ("contacts", "/contacts/"), ("privacy", "/privacy/")):
             with self.subTest(key=key):
                 page = self.page(key)
                 page.title = f"Проверка страницы {key}"
                 page.save()
-                # Info routes load page + sections + shared catalog navigation.
+                # Info routes load page + shared catalog navigation.
                 # Home also reads featured products, categories and readiness.
-                expected_queries = 6 if path == "/" else 4
+                expected_queries = 6 if path == "/" else (4 if path == "/contacts/" else 3)
                 with self.assertNumQueries(expected_queries):
                     response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
@@ -374,41 +372,27 @@ class ContentTests(TestCase):
         for path in ("/", "/about/", "/delivery/", "/contacts/", "/privacy/"):
             # Missing info pages still render shared navigation. Home renders
             # its published catalog sections even without editable content.
-            expected_queries = 5 if path == "/" else 3
+            expected_queries = 6 if path == "/" else (4 if path == "/contacts/" else 3)
             with self.subTest(path=path), self.assertNumQueries(expected_queries):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
                 self.assertNotContains(response, "advantage_1")
 
-    # Заполнить четыре блока advantage_1/2 и step_1/2 обратным display_order;
-    # главная должна уложиться в 6 запросов и вывести B перед A в каждой паре.
-    def test_home_repeated_blocks_respect_order_and_no_per_block_queries(self):
+    # Старые настройки блоков не меняют готовые подписи и шаги главной.
+    # Единственный редактируемый текст появляется в секции «О компании».
+    def test_home_uses_single_body_and_ignores_archived_blocks(self):
         page = self.page("home")
-        values = (("advantage_1", "Преимущество A", 200), ("advantage_2", "Преимущество B", 100), ("step_1", "Шаг A", 200), ("step_2", "Шаг B", 100))
-        for key, title, order in values:
-            section = page.sections.get(key=key)
-            section.title, section.body, section.display_order = title, "Тестовый текст", order
-            section.save()
+        page.body = "Единый текст главной\n\nВторой абзац"
+        page.save()
+        section = page.sections.get(key="step_1")
+        section.title = "Устаревший шаг"
+        section.save()
         with self.assertNumQueries(6):
             response = self.client.get("/")
-        html = response.content.decode()
-        self.assertLess(html.index("Преимущество B"), html.index("Преимущество A"))
-        self.assertLess(html.index("Шаг B"), html.index("Шаг A"))
-
-    # Записать уникальные заголовки и body во все блоки главной; после GET /
-    # проверить оба поля, а для title-only hero value — публичную подпись.
-    def test_every_editable_home_block_text_is_visible(self):
-        page = self.page("home")
-        for i, section in enumerate(page.sections.all()):
-            section.title = f"Тестовый заголовок номер {i}"
-            section.body = f"Тестовое содержимое номер {i}"
-            section.save()
-        response = self.client.get("/")
-        for section in page.sections.all():
-            with self.subTest(key=section.key):
-                self.assertContains(response, section.title)
-                if not section.key.startswith("hero_value_"):
-                    self.assertContains(response, section.body)
+        self.assertContains(response, "Единый текст главной", count=1)
+        self.assertContains(response, "<p>Второй абзац</p>", html=True)
+        self.assertNotContains(response, "Устаревший шаг")
+        self.assertContains(response, "Выберите товары")
 
 
 class AdminTests(TestCase):
@@ -418,49 +402,34 @@ class AdminTests(TestCase):
         cls.editor.user_permissions.set(Permission.objects.filter(content_type__app_label="content"))
         cls.consent_revision = get_current_consent_revision()
 
-    def payload(self, page, overrides=None):
-        sections = list(page.sections.all())
-        data = dict(title=page.title, seo_title=page.seo_title, seo_description=page.seo_description, **{"sections-TOTAL_FORMS": len(sections), "sections-INITIAL_FORMS": len(sections), "sections-MIN_NUM_FORMS": 0, "sections-MAX_NUM_FORMS": 1000})
-        for i, section in enumerate(sections):
-            prefix = f"sections-{i}-"
-            fields = ["id", "title"]
-            if not section.key.startswith("hero_value_"):
-                fields.append("body")
-            if page.key != "home" or section.key.startswith(("advantage_", "step_")):
-                fields.append("display_order")
-            for field in fields:
-                data[prefix + field] = getattr(section, field)
-            if overrides and section.key in overrides:
-                data.update({prefix + key: value for key, value in overrides[section.key].items()})
-        return data
+    def payload(self, page):
+        return {"title": page.title, "seo_title": page.seo_title,
+                "seo_description": page.seo_description, "body": page.body}
 
-    # Войти редактором, открыть страницу главной в админке и сохранить заголовки
-    # и тексты hero/about через inline-формы; POST должен вернуть redirect, а
-    # анонимный Client должен увидеть оба абзаца и новый заголовок на главной.
-    def test_staff_updates_home_inlines_then_anonymous_sees_changes(self):
+    # Владелец сохраняет единый текст главной без inline-форм; анонимный
+    # посетитель видит оба абзаца и изменённый заголовок.
+    def test_staff_updates_home_text_then_anonymous_sees_changes(self):
         login_verified_admin(self.client, self.editor)
         page = ContentPage.objects.get(key="home")
         url = reverse("admin:content_contentpage_change", args=[page.pk])
         self.assertEqual(self.client.get(url).status_code, 200)
-        data = self.payload(page, {"hero": {"body": "Проверка сохранения из админки\n\nВторой абзац"}, "about": {"body": "Тестовый текст о компании"}})
-        data.update(title="Проверка главной", seo_title="Проверка SEO")
+        data = self.payload(page)
+        data.update(body="Проверка сохранения из админки\n\nВторой абзац",
+                    title="Проверка главной", seo_title="Проверка SEO")
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 302, response.context and str(response.context.get("errors")))
         public = Client().get("/")
         self.assertContains(public, "Проверка сохранения из админки")
         self.assertContains(public, "Второй абзац")
-        self.assertContains(public, "Тестовый текст о компании")
         self.assertContains(public, "Проверка главной")
 
-    # Обновить через админку блок delivery (создать body, если его нет); POST
-    # должен перенаправить, а публичный /delivery/ показать сохранённый текст.
+    # Сохранить единый текст доставки без inline management form; публичная
+    # страница сразу показывает новое содержимое.
     def test_staff_updates_information_page_and_sees_saved_text(self):
         login_verified_admin(self.client, self.editor)
         page = ContentPage.objects.get(key="delivery")
-        section = page.sections.exclude(key="lead").first()
-        if section is None:
-            section = ContentSection.objects.create(page=page, key="body")
-        data = self.payload(page, {section.key: {"title": "Тестовый заголовок", "body": "Тестовый текст доставки"}})
+        data = {"title": page.title, "seo_title": page.seo_title,
+                "seo_description": page.seo_description, "body": "Тестовый текст доставки"}
         response = self.client.post(reverse("admin:content_contentpage_change", args=[page.pk]), data)
         self.assertEqual(response.status_code, 302)
         self.assertContains(Client().get("/delivery/"), "Тестовый текст доставки")
@@ -471,7 +440,10 @@ class AdminTests(TestCase):
     def test_forged_structural_key_delete_and_page_key_are_ignored(self):
         login_verified_admin(self.client, self.editor)
         page = ContentPage.objects.get(key="home")
-        data = self.payload(page, {"hero": {"key": "changed", "DELETE": "on"}})
+        data = self.payload(page)
+        data.update({"sections-TOTAL_FORMS": "1", "sections-INITIAL_FORMS": "0",
+                     "sections-0-key": "changed", "sections-0-body": "Подмена",
+                     "sections-0-DELETE": "on"})
         data["key"] = "privacy"
         response = self.client.post(reverse("admin:content_contentpage_change", args=[page.pk]), data)
         self.assertEqual(response.status_code, 302)
@@ -521,7 +493,7 @@ class AdminTests(TestCase):
         self.assertEqual(product.images.filter(is_primary=True).count(), 1)
 
     # Суперпользователь не должен видеть поле снимка в форме заказа; поддельный
-    # POST с изменением/удалением позиции оставляет снимок и заказ неизменными,
+    # POST с изменением/удалением позиции отклоняется и оставляет заявку неизменной,
     # а удаление самого заказа через админку запрещено ответом 403.
     def test_request_snapshots_are_read_only_in_admin(self):
         user = get_user_model().objects.create_superuser(username="test-admin", email="")
@@ -533,7 +505,7 @@ class AdminTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'name="items-0-product_name_snapshot"')
         data = {"name": "Подмена", "items-TOTAL_FORMS": 1, "items-INITIAL_FORMS": 1, "items-MIN_NUM_FORMS": 0, "items-MAX_NUM_FORMS": 0, "items-0-id": item.pk, "items-0-order": order.pk, "items-0-product_name_snapshot": "Подмена", "items-0-DELETE": "on"}
-        self.assertEqual(self.client.post(url, data).status_code, 302)
+        self.assertEqual(self.client.post(url, data).status_code, 403)
         item.refresh_from_db()
         order.refresh_from_db()
         self.assertEqual(item.product_name_snapshot, "Исторический товар")

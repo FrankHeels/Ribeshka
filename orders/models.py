@@ -8,7 +8,6 @@ from django.db import models
 from django.db.models import Q
 from django.db.models.query import QuerySet
 from django.db.models.manager import Manager
-from django.conf import settings
 
 from catalog.models import Product
 from content.models import ConsentRevision
@@ -51,16 +50,6 @@ class Order(models.Model):
     submission_key = models.UUIDField("Ключ отправки", default=uuid.uuid4, unique=True, editable=False)
     success_token = models.UUIDField("Токен страницы успеха", default=uuid.uuid4, unique=True, editable=False)
     created_at = models.DateTimeField("Создана", auto_now_add=True)
-    internal_notes = models.TextField("Заметка менеджера", blank=True)
-    assigned_to = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name="Ответственный менеджер",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="assigned_retail_orders",
-    )
-    viewed_at = models.DateTimeField("Просмотрена менеджером", null=True, blank=True, editable=False)
 
     class Meta:
         verbose_name = "розничная заявка"
@@ -95,16 +84,6 @@ class Order(models.Model):
             errors["delivery_address"] = "Укажите адрес для доставки."
         if not self.privacy_consent:
             errors["privacy_consent"] = "Для создания заявки требуется согласие на обработку данных."
-        if self.assigned_to_id:
-            previous_assignee_id = (
-                type(self).objects.filter(pk=self.pk).values_list("assigned_to_id", flat=True).first()
-                if self.pk
-                else None
-            )
-            if self.assigned_to_id != previous_assignee_id and (
-                not self.assigned_to.is_active or not self.assigned_to.is_staff
-            ):
-                errors["assigned_to"] = "Ответственным можно назначить только активного сотрудника сайта."
         if self._state.adding and self.privacy_consent_revision_id is None:
             errors["privacy_consent_revision"] = "Для новой заявки требуется редакция принятого согласия."
         if errors:

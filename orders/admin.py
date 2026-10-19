@@ -1,15 +1,11 @@
-from django import forms
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.core.exceptions import ImproperlyConfigured
-from django.db import transaction
 from django.db.models import Prefetch, Sum
 from django.template.loader import render_to_string
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 
-from fishsite.backoffice.forms import assignee_field_for
 from integrations.models import MoySkladTask
 from integrations.moysklad.config import get_config
 from integrations.moysklad.contracts import safe_error_code
@@ -37,52 +33,25 @@ class OrderItemsInline(TabularInline):
         return False
 
 
-class UnseenOrdersFilter(admin.SimpleListFilter):
-    title = "Просмотр менеджером"
-    parameter_name = "seen"
-
-    def lookups(self, request, model_admin):
-        return (("no", "Не просмотрены"), ("yes", "Просмотрены"))
-
-    def queryset(self, request, queryset):
-        if self.value() == "no":
-            return queryset.filter(viewed_at__isnull=True)
-        if self.value() == "yes":
-            return queryset.filter(viewed_at__isnull=False)
-        return queryset
-
-
-class OrderAdminForm(forms.ModelForm):
-    class Meta:
-        model = Order
-        fields = ("internal_notes", "assigned_to")
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["assigned_to"] = assignee_field_for(self.instance)
-
-
 @admin.register(Order)
 class OrderAdmin(ModelAdmin):
-    form = OrderAdminForm
-    list_display = ("order_number", "name", "phone", "preliminary_total", "fulfillment_method", "seen_status", "created_at")
-    list_filter = (UnseenOrdersFilter, "fulfillment_method", "created_at")
+    list_display = ("order_number", "name", "phone", "preliminary_total", "fulfillment_method", "created_at")
+    list_filter = ("fulfillment_method", "created_at")
     search_fields = ("order_number", "name", "phone", "email")
     readonly_fields = (
         "order_number", "created_at", "name", "phone", "email", "fulfillment_method",
-        "delivery_address", "comment", "privacy_consent", "privacy_consent_at", "viewed_at",
+        "delivery_address", "comment", "privacy_consent", "privacy_consent_at",
         "consent_revision_archive", "moysklad_exchange",
     )
     fieldsets = (
         ("Заявка", {"fields": ("order_number", "created_at", ("name", "phone"), "email", "fulfillment_method", "delivery_address", "comment")}),
         ("Согласие", {"fields": ("privacy_consent", "privacy_consent_at", "consent_revision_archive"), "classes": ("tab",)}),
         ("МойСклад", {"fields": ("moysklad_exchange",), "classes": ("tab",)}),
-        ("Работа менеджера", {"fields": ("viewed_at", "assigned_to", "internal_notes"), "classes": ("tab",)}),
     )
     inlines = (OrderItemsInline,)
     ordering = ("-created_at", "-pk")
     date_hierarchy = "created_at"
-    actions = ("mark_as_seen",)
+    actions = None
 
     @admin.display(description="Передача и учётный статус")
     def moysklad_exchange(self, obj):
@@ -110,10 +79,6 @@ class OrderAdmin(ModelAdmin):
             "can_resolve": link.attempted and not link.external_id,
         })
 
-    @admin.display(description="Просмотр")
-    def seen_status(self, obj):
-        return "Просмотрена" if obj.viewed_at else "Не просмотрена"
-
     @admin.display(description="Предварительная сумма", ordering="preliminary_total")
     def preliminary_total(self, obj):
         if obj.preliminary_total is None:
@@ -130,28 +95,10 @@ class OrderAdmin(ModelAdmin):
             reverse("admin:content_consentrevision_change", args=(revision.pk,)),
         )
 
-    @admin.action(description="Отметить просмотренными", permissions=("change",))
-    def mark_as_seen(self, request, queryset):
-        now = timezone.now()
-        changed = 0
-        with transaction.atomic(using=queryset.db):
-            selected_ids = queryset.values_list("pk", flat=True)
-            orders = list(
-                Order.objects.using(queryset.db)
-                .filter(pk__in=selected_ids)
-                .order_by("pk")
-                .select_for_update()
-            )
-            for order in orders:
-                if order.viewed_at is not None:
-                    continue
-                Order.objects.using(queryset.db).filter(pk=order.pk, viewed_at__isnull=True).update(viewed_at=now)
-                order.viewed_at = now
-                self.log_change(request, order, "Заявка отмечена как просмотренная менеджером.")
-                changed += 1
-        self.message_user(request, f"Отмечено просмотренными: {changed}.", messages.SUCCESS)
-
     def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False
 
     def has_delete_permission(self, request, obj=None):
@@ -160,7 +107,7 @@ class OrderAdmin(ModelAdmin):
     def get_queryset(self, request):
         return (
             super().get_queryset(request)
-            .select_related("privacy_consent_revision", "assigned_to", "moysklad_link")
+            .select_related("privacy_consent_revision", "moysklad_link")
             .prefetch_related(Prefetch("moysklad_link__tasks", queryset=MoySkladTask.objects.filter(kind="export_order").order_by("-created_at", "-pk"), to_attr="backoffice_export_tasks"))
             .annotate(preliminary_total=Sum("items__line_total"))
         )
