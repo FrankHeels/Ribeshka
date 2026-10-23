@@ -120,7 +120,7 @@ class SiteSettingsAdmin(SingletonAdmin):
         "footer_notice": "Пустое поле скрывает дополнительную подпись.",
     }
     fieldsets = (
-        ("Контакты", {"fields": ("phone_primary", "phone_secondary", "email", "address", "opening_hours")}),
+        ("Контакты", {"fields": ("phone_primary", "email", "address", "opening_hours")}),
         ("Подвал сайта", {"fields": ("footer_notice",)}),
     )
 

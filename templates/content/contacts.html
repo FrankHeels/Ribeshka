@@ -7,16 +7,15 @@
     <div class="contacts-grid">
       <div class="contacts-primary">
         {% if site_settings.phone_primary %}<a class="contacts-phone" href="tel:{{ site_settings.phone_primary|cut:' '|cut:'-'|cut:'('|cut:')' }}">{{ site_settings.phone_primary }}</a>{% endif %}
-        {% if site_settings.phone_secondary and site_settings.phone_secondary != site_settings.phone_primary %}<a class="contacts-phone contacts-phone-secondary" href="tel:{{ site_settings.phone_secondary|cut:' '|cut:'-'|cut:'('|cut:')' }}">{{ site_settings.phone_secondary }}</a>{% endif %}
-        {% include "partials/site-links.html" %}
         {% if site_settings.email %}<a class="contacts-email" href="mailto:{{ site_settings.email }}">{{ site_settings.email }}</a>{% endif %}
+        {% include "partials/site-links.html" %}
       </div>
       {% if site_settings.opening_hours or site_settings.address %}<div class="contacts-schedule">
         {% if site_settings.opening_hours %}<div>{{ site_settings.opening_hours|linebreaks }}</div>{% endif %}
         {% if site_settings.address %}<p>{{ site_settings.address }}</p>{% endif %}
       </div>{% endif %}
     </div>
-    {% if not site_settings.phone_primary and not site_settings.phone_secondary and not site_settings.email and not site_settings.address and not site_settings.opening_hours and not site_links %}<p class="contacts-empty">{{ content_notice }}</p>{% endif %}
+    {% if not site_settings.phone_primary and not site_settings.email and not site_settings.address and not site_settings.opening_hours and not site_links %}<p class="contacts-empty">{{ content_notice }}</p>{% endif %}
   </section>
   <section class="contact-map-section" aria-labelledby="contact-map-title" data-contact-map>
     <div class="contact-map-heading">

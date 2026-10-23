@@ -128,16 +128,23 @@ class HomepageContentPreservationTests(TestCase):
         HomepageRecommendation.objects.update_or_create(slot=1, defaults={"product": cls.product})
         HomepageRecommendation.objects.update_or_create(slot=2, defaults={"product": None})
 
-    # GET главной сохраняет заголовок, единый текст, общие контакты и товар;
-    # старые context-поля и запрос к таблице настроек обложки больше не нужны.
+    # GET главной сохраняет заголовок, единый текст и товар; телефон доступен
+    # на странице контактов и не дублируется на главной. Старые context-поля
+    # и запрос к таблице настроек обложки больше не нужны.
     def test_home_keeps_editable_content_without_obsolete_context_or_query(self):
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(reverse("home"))
         self.assertEqual(response.status_code, 200)
-        for text in [self.home.title, self.home.body, self.site.phone_primary]:
+        for text in [self.home.title, self.home.body]:
             self.assertContains(response, text)
+        self.assertNotContains(response, self.site.phone_primary)
+        contacts_url = reverse("content:contacts")
+        self.assertContains(response, f'href="{contacts_url}"')
+        self.assertContains(self.client.get(contacts_url), self.site.phone_primary)
         self.assertEqual(response.context["featured_products"], [self.product])
         self.assertContains(response, self.product.name)
+        self.assertContains(response, "Рекомендуемые товары")
+        self.assertNotContains(response, 'class="empty-state-feature"')
         with self.subTest(behavior="context"):
             for key in ("homepage_settings", "hero_photo", "hero_button_label", "hero_button_url"):
                 with self.subTest(key=key):

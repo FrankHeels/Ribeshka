@@ -13,6 +13,9 @@
   --color-accent: var(--color-brass);
   --color-line: rgb(215 183 123 / 24%);
   --color-text-muted: #c8b9a2;
+  --color-editorial: #fff8ed;
+  --color-contact: #f0d39a;
+  --color-contact-hover: #ffe4b1;
   --color-on-dark: var(--color-ivory);
   --color-on-dark-muted: var(--color-text-muted);
   --color-surface: #281e17;
@@ -25,12 +28,15 @@
   --wood-main: url("../img/backgrounds/smoked-walnut.webp");
   --wood-warm: url("../img/backgrounds/roasted-oak.webp");
   --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-contact: "Cormorant Garamond", Georgia, serif;
   --font-body: "Golos Text", Arial, sans-serif;
+  --font-editorial: "Onest", "Golos Text", Arial, sans-serif;
   --font-label: var(--font-body);
   --text-hero: clamp(3.75rem, 6.4vw, 6.5rem);
   --text-h2: clamp(3rem, 4.6vw, 4.25rem);
   --text-h3: 1.875rem;
   --text-body: 1.125rem;
+  --text-editorial: clamp(1.25rem, 1.125rem + .4vw, 1.5rem);
   --text-small: 1rem;
   --text-label: 1rem;
   --container: 76rem;

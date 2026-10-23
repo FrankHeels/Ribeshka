@@ -80,7 +80,7 @@
           <a class="text-link" href="{% url 'content:about' %}">О компании <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
         </div>
       </div>
-      <div class="about-note"><p>За каждой заявкой — личное общение. Поможем с выбором, уточним нужный объём и согласуем удобный способ получения, чтобы вам было проще спланировать покупку.</p></div>
+      <aside class="about-note"><p>За каждой заявкой — личное общение. Поможем с выбором, уточним нужный объём и согласуем удобный способ получения, чтобы вам было проще спланировать покупку.</p></aside>
     </div>
   </section>
 
@@ -99,13 +99,6 @@
       <div class="home-link-panel home-contact-panel">
         <span class="home-link-kicker">Связь</span>
         <a class="home-contact-title" href="{% url 'content:contacts' %}"><strong>Контакты</strong><span class="home-link-arrow" aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
-        <div class="home-link-copy home-contact-details">
-          {% if site_settings.phone_primary %}<p>{{ site_settings.phone_primary }}</p>{% endif %}
-          {% if site_settings.email %}<p>{{ site_settings.email }}</p>{% endif %}
-          {% if site_settings.address %}<p>{{ site_settings.address }}</p>{% endif %}
-          {% if site_settings.opening_hours %}<p>{{ site_settings.opening_hours|linebreaksbr }}</p>{% endif %}
-          {% if not site_settings.phone_primary and not site_settings.email and not site_settings.address and not site_settings.opening_hours and not site_links %}<p>Контактные сведения появятся после подтверждения</p>{% endif %}
-        </div>
         {% include "partials/site-links.html" %}
       </div>
     </div>

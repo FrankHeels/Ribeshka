@@ -10,9 +10,10 @@
 
 ## Цвет, шрифт и материалы
 
-- `Cormorant Garamond` используется в заголовках; `Golos Text` — в основном интерфейсе и длинном тексте.
+- `Cormorant Garamond` используется в заголовках и контактном номере; `Golos Text` — в основном интерфейсе и длинном тексте; `Onest` — в коротких редакционных фрагментах и тексте бумажной записки.
 - Основной текст рассчитан примерно на 18px, малый текст и подписи — на 16px. Сохраняйте масштабируемые CSS-токены; не уменьшайте текст, чтобы уместить контент.
 - Главные фоновые текстуры: `smoked-walnut.webp` и `roasted-oak.webp`. Промпты и пары «исходник PNG / production WebP» находятся в [`design-reference/dark-wood-generation.md`](design-reference/dark-wood-generation.md).
+- Фон бумажной записки — активный декоративный ассет; полный промпт, PNG-источник и WebP указаны в [`design-reference/shop-note-generation.md`](design-reference/shop-note-generation.md). Сам текст остаётся HTML.
 - Контактные и социальные SVG/PNG и параметры генерации описаны в [`design-reference/social-icons-generation.md`](design-reference/social-icons-generation.md); полный набор промптов и параметров Vectorize хранится в соседнем JSON.
 - Если меняется семейство шрифта или лицензия, сверьтесь с [`static/fonts/README.md`](../static/fonts/README.md) и самими файлами лицензий.
 

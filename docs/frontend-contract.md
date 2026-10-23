@@ -32,7 +32,7 @@ Sources: [`content/views.py`](../content/views.py), [`catalog/views.py`](../cata
 - `/` has a fixed hero, category assortment, up to two configured recommendation slots, a short company section, the request steps, and delivery/contact panels. The hero action jumps to `#assortment`; there is no public aggregate `/catalog/` page.
 - Home categories and recommendations use only public records. Missing category imagery falls back to a sample product image, then to a text placeholder. A missing public assortment gets a visible empty state.
 - The hero notice always says prices are indicative, the manager confirms availability and final cost, and a request does not reserve stock. Keep this next to the primary action and readable on narrow screens.
-- The home company copy comes from the single editable home body. The companion note remains selectable HTML. The home contact panel links to the contact page and renders the configured phone, email, address, hours and site links; missing details use the shared empty state.
+- The home company copy comes from the single editable home body. The decorative paper note remains selectable HTML over a background image and grows with its text. The home contact panel links to the contact page and renders configured site links; full contact details stay on `/contacts/`.
 - Category pages list public products and paginate. Product cards show the current public price as indicative. Product detail shows the product’s price/weight information and explains that the manager confirms current price and availability.
 
 ## Product weight and cart controls
@@ -53,7 +53,7 @@ Sources: [`content/views.py`](../content/views.py), [`catalog/views.py`](../cata
 
 ## Information pages and maps
 
-- About and delivery copy comes from the corresponding content page. The contacts page renders configured primary and secondary phones, email, site links, hours, and address. Its map uses the separately configured fixed contact location below those details; keep address and external map links available if the embed fails.
+- About and delivery copy comes from the corresponding content page. The contacts page renders configured primary phone, email, site links, hours, and address. Its map uses the separately configured fixed contact location below those details; keep address and external map links available if the embed fails.
 - The delivery page places its map after the text. Keep the static zone legend and textual fallback when the map is unavailable. See [`delivery-map.md`](delivery-map.md) for map behavior and provenance.
 ## Legal pages
 

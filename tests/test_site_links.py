@@ -41,7 +41,7 @@ class SiteLinksTests(TestCase):
             SiteLink.objects.create(settings=self.settings, name="Текстовая ссылка", url="https://text.example.test/")
             logo = SiteLink.objects.create(settings=self.settings, name="Логотип ссылки", url="https://logo.example.test/", image=logo_upload())
             self.settings.phone_primary = "+7 000 123-45-67"
-            self.settings.phone_secondary = self.settings.phone_primary
+            self.settings.phone_secondary = "+7 000 765-43-21"
             self.settings.opening_hours = "Понедельник — пятница\n09:00–20:00"
             self.settings.email = "seller@example.test"
             self.settings.address = "Тестовый адрес"
@@ -57,6 +57,7 @@ class SiteLinksTests(TestCase):
             for forbidden in ("tel:", "mailto:", self.settings.address, "Текстовая ссылка", "site-social-links"):
                 self.assertNotIn(forbidden, footer)
             self.assertContains(response, 'class="contacts-phone"', count=1)
+            self.assertNotContains(response, self.settings.phone_secondary)
             self.assertContains(response, 'class="contacts-schedule"')
             left = footer.split('aria-label="Разделы сайта">', 1)[1].split('</nav>', 1)[0]
             right = footer.split('aria-label="Правовая информация">', 1)[1].split('</nav>', 1)[0]
@@ -90,7 +91,8 @@ class SiteLinksTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("whatsapp_url", response.context["adminform"].form.fields)
         self.assertEqual(response.context["inline_admin_formsets"][0].formset.prefix, "links")
-        fields = ("phone_primary", "phone_secondary", "email", "address", "opening_hours", "footer_notice")
+        self.assertNotIn("phone_secondary", response.context["adminform"].form.fields)
+        fields = ("phone_primary", "email", "address", "opening_hours", "footer_notice")
         data = {field: getattr(self.settings, field) for field in fields}
         data.update({"links-TOTAL_FORMS": "1", "links-INITIAL_FORMS": "0",
                      "links-MIN_NUM_FORMS": "0", "links-MAX_NUM_FORMS": "1000",

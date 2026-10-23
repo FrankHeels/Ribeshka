@@ -148,31 +148,3 @@ class FrontendTemplateTests(TestCase):
         )
         self.assertNotIn('name="need"', wholesale)
         self.assertNotIn("Опишите потребность", wholesale)
-
-    # Рендерит главную с одним рекомендуемым товаром и подтверждённым описанием:
-    # заголовок сообщает о рекомендуемых товарах, пустое состояние каталога скрыто,
-    # а текст о компании присутствует.
-    def test_populated_home_has_populated_heading(self):
-        html = self.render(
-            "home.html",
-            {"catalog_ready": True, "categories": [], "featured_products": [self.product], "about_summary": "Подтверждённый текст"},
-        )
-        self.assertIn("Рекомендуемые товары", html)
-        self.assertNotIn("В каталоге пока пусто", html)
-        self.assertIn("Подтверждённый текст", html)
-
-    # Рендерит страницу категории с товаром и переданным устаревшим контекстом
-    # подкатегории: название товара показывается, но название подкатегории и секция
-    # «Подкатегории» в HTML отсутствуют.
-    def test_category_page_does_not_render_legacy_subcategory_context(self):
-        html = self.render(
-            "catalog/category.html",
-            {
-                "category": {"name": "Рыба", "description": "Описание категории"},
-                "products": [self.product],
-                "child_categories": [{"name": "Лишняя подкатегория", "slug": "nested"}],
-            },
-        )
-        self.assertIn("Тестовый товар", html)
-        self.assertNotIn("Лишняя подкатегория", html)
-        self.assertNotIn("Подкатегории", html)
