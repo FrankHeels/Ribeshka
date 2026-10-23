@@ -1,174 +1,76 @@
-# Практическая проверка Mail.ru SMTP на основной локальной БД FishSite
+# Практическая проверка Mail.ru SMTP
 
-Обычный ручной сценарий: запуск Django → корзина в браузере → сохранение заказа
-в основной БД `fishsite` → отправка письма владельцу постоянным worker.
-Команды запускают `manage.py` напрямую. Временные запускатели, сценарные Python-файлы,
-тестовая БД и автоматическое создание заказов не используются.
+Эта проверка отправляет реальные письма, но использует отдельную БД с синтетическими заявками.
+Не запускай проверочный worker на основной БД fishsite: он обрабатывает все готовые задачи
+выбранной БД.
 
-## Перед запуском
+## Подготовка
 
-- PostgreSQL запущен, основная локальная БД `fishsite` доступна.
-- Окружение `.venv` подготовлено с зависимостями из `uv.lock`, включая `python-dotenv`;
-  товары и стили используются из существующего проекта.
-- В `.env` заполнены `DJANGO_DB_*`, Mail.ru `SMTP_*`, `NOTIFICATION_FROM_EMAIL`
-  и `NOTIFICATION_TO_EMAIL`.
-- Для Mail.ru выбраны `SMTP_HOST=smtp.mail.ru`, порт 465,
-  `SMTP_USE_TLS=false` и `SMTP_USE_SSL=true`.
-- Для локального запуска в `.env` заданы `DJANGO_DB_NAME=fishsite`,
-  `DJANGO_DEBUG=true` и `DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,[::1]`.
-- Пароль приложения с пробелами в `.env` можно оставить в кавычках;
-  `python-dotenv` прочитает значение без внешних кавычек.
-- В настройках Mail.ru включён доступ к почте по SMTP, а `SMTP_PASSWORD` содержит
-  отдельный пароль для внешнего приложения. Используй сеть, из которой доступен
-  `smtp.mail.ru:465`.
-- Останови предыдущий локальный сервер и старые worker через Ctrl+C в их терминалах,
-  чтобы новый сервер занимал порт 8000, а очередь обслуживал один worker.
+- В локальном .env настрой Mail.ru по [шаблону параметров](../.env.example). Внешние переменные
+  окружения имеют приоритет; не используй старую вкладку shell с устаревшими SMTP-параметрами.
+- Выбери отдельный тестовый адрес получателя. Переопредели NOTIFICATION_TO_EMAIL только в
+  командах SMTP ниже; не меняй основной получатель в .env ради теста.
+- Убедись, что БД fishsite_mailru_validation ещё не существует. Если она существует, остановись
+  и проверь её назначение; не очищай и не переиспользуй её вслепую.
+- Для createdb используй локальную PostgreSQL-роль владельца с правом CREATEDB. Параметры
+  подключения задавай в shell отдельно; пароль не помещай в команду.
 
-Заказ будет сохранён в основной БД, а письмо действительно уйдёт на
-`NOTIFICATION_TO_EMAIL`. Worker обрабатывает все готовые задачи выбранной БД,
-включая накопленные ранее. Очередь не очищается и старые заявки не удаляются.
+~~~sh
+createdb --host "$DJANGO_DB_HOST" --port "$DJANGO_DB_PORT" --username "$DJANGO_DB_USER" --owner "$DJANGO_DB_USER" fishsite_mailru_validation
+DJANGO_DB_NAME=fishsite_mailru_validation .venv/bin/python manage.py migrate
+DJANGO_DB_NAME=fishsite_mailru_validation .venv/bin/python manage.py seed_demo_catalog
+DJANGO_DB_NAME=fishsite_mailru_validation .venv/bin/python manage.py shell -c "from django.db import connection; cursor = connection.cursor(); cursor.execute('SELECT current_database()'); print(cursor.fetchone()[0]); cursor.close()"
+DJANGO_DB_NAME=fishsite_mailru_validation DJANGO_DEBUG=true .venv/bin/python manage.py runserver 127.0.0.1:8000
+~~~
 
-## 1. Первый терминал — подготовка и проверки
+Перед продолжением подтверди, что база в терминале Django — fishsite_mailru_validation. Создай
+синтетические розничную и, при необходимости, оптовую заявки через браузер. Используй тестовые
+контактные данные; пометь комментарий как тестовый.
 
-Настройки автоматически загружают `.env` из корня проекта при запуске Django
-и worker. Вручную выполнять `source .env` и экспортировать параметры не нужно.
+## Preflight и отправка
 
-```bash
-cd /Users/frankheels/FishSite
-uv sync --frozen --python 3.13
-```
+Preflight не отправляет письмо и не обращается к БД/outbox. Перед его запуском выбери
+контрольный ящик:
 
-Уже заданные переменные окружения имеют приоритет над `.env` (`override=False`).
-Используй новые вкладки терминала без старых экспортированных параметров. Если
-ранее выполнял `source .env` в текущей вкладке, новый запуск не заменит эти значения
-из обновлённого файла: открой новую вкладку. Само содержимое `.env` не выводится в лог.
-После перехода проверь, что старые `SMTP_*` переменные не экспортированы в shell;
-иначе они перекроют профиль Mail.ru из `.env`.
+~~~sh
+DJANGO_DB_NAME=fishsite_mailru_validation NOTIFICATION_TO_EMAIL=test-recipient@example.com .venv/bin/python manage.py check_notification_smtp
+~~~
 
-Проверь фактическое подключение: команда должна напечатать `fishsite`.
+Замени test-recipient@example.com в командах на контролируемый реальный ящик. Успех подтверждает
+соединение, TLS и AUTH для текущего профиля Mail.ru, но не доставку письма. Перед worker проверь
+фактическую БД и убедись, что в outbox находятся только подготовленные синтетические задачи.
+Команда ниже обрабатывает все готовые задачи этой БД:
 
-```bash
-.venv/bin/python manage.py shell -c "from django.db import connection; cursor = connection.cursor(); cursor.execute('SELECT current_database()'); print(cursor.fetchone()[0]); cursor.close()"
-```
+~~~sh
+DJANGO_DB_NAME=fishsite_mailru_validation NOTIFICATION_TO_EMAIL=test-recipient@example.com .venv/bin/python manage.py shell -c "from integrations.models import NotificationOutbox; print(list(NotificationOutbox.objects.exclude(status='sent').order_by('pk').values('id', 'status', 'attempt_count', 'last_error')))"
+DJANGO_DB_NAME=fishsite_mailru_validation NOTIFICATION_TO_EMAIL=test-recipient@example.com .venv/bin/python manage.py process_notifications --once
+~~~
 
-Выполни проверки. Продолжай после успешного завершения всех трёх команд:
+Для проверки постоянного worker сначала создай ровно одну новую синтетическую заявку, затем
+запусти процесс без --once:
 
-```bash
-.venv/bin/python manage.py check &&
-.venv/bin/python manage.py migrate --check &&
-.venv/bin/python manage.py check_notification_smtp
-```
+~~~sh
+DJANGO_DB_NAME=fishsite_mailru_validation NOTIFICATION_TO_EMAIL=test-recipient@example.com .venv/bin/python manage.py process_notifications
+~~~
 
-`migrate --check` проверяет состояние миграций и не изменяет БД. Если он сообщает
-о неприменённых миграциях, примени миграции и повтори проверки:
+Замени адрес получателя на контрольный. Не запускай параллельный worker, направленный на эту БД.
 
-```bash
-.venv/bin/python manage.py migrate
-```
+После отправки в новом терминале проверь только безопасные поля outbox:
 
-`check_notification_smtp` проверяет TLS и авторизацию Mail.ru, не отправляя письмо.
-При сетевой ошибке сначала проверь доступность `smtp.mail.ru:465` и SMTP-права
-почтового ящика.
+~~~sh
+DJANGO_DB_NAME=fishsite_mailru_validation .venv/bin/python manage.py shell -c "from integrations.models import NotificationOutbox; print(list(NotificationOutbox.objects.order_by('pk').values('id', 'status', 'attempt_count', 'last_error', 'sent_at')))"
+~~~
 
-При необходимости создать пользователя админки используй существующую основную БД:
+## Результат
 
-```bash
-.venv/bin/python manage.py createsuperuser
-```
+Сверь соответствующий outbox со статусом и безопасным событием delivery_attempt. Для завершения
+проверки получи сообщение в контрольном почтовом ящике и проверь папку «Спам». Статус sent
+означает только принятие письма SMTP-сервером. При неопределённом результате возможна повторная
+отправка.
 
-Если пользователь уже есть, пропусти эту команду.
+Для остановки процессов нажми Ctrl+C. Тестовая БД остаётся на месте и не затрагивает основную
+fishsite; не удаляй её без отдельной проверки идентичности и подтверждения, что она больше не
+нужна.
 
-## 2. Первый терминал — запуск Django
-
-```bash
-.venv/bin/python manage.py runserver 127.0.0.1:8000
-```
-
-Оставь терминал открытым. Сайт доступен по адресу
-[http://127.0.0.1:8000/](http://127.0.0.1:8000/).
-
-## 3. Второй терминал — постоянный worker
-
-Открой новую вкладку. Worker сам загрузит тот же `.env` через настройки Django:
-
-```bash
-cd /Users/frankheels/FishSite
-.venv/bin/python manage.py shell -c "from django.db import connection; cursor = connection.cursor(); cursor.execute('SELECT current_database()'); print(cursor.fetchone()[0]); cursor.close()"
-```
-
-Должно быть напечатано `fishsite`, как и в первом терминале.
-
-Перед запуском посмотри неотправленные задачи без вывода контактов покупателей:
-
-```bash
-.venv/bin/python manage.py shell -c "from integrations.models import NotificationOutbox; print(list(NotificationOutbox.objects.exclude(status='sent').order_by('pk').values('id', 'status', 'attempt_count', 'last_error')))"
-```
-
-Запусти worker и оставь его работать:
-
-```bash
-.venv/bin/python manage.py process_notifications
-```
-
-Здесь используется постоянный режим: worker принимает новые заявки после запуска
-и выполняет отложенные повторы. Одного запуска Django для отправки писем недостаточно.
-
-## 4. Собери и отправь заказ в браузере
-
-1. Открой [главную страницу](http://127.0.0.1:8000/).
-2. Выбери категорию и существующий опубликованный товар.
-3. Добавь товар в корзину, задав вес целыми килограммами, например 2 кг.
-4. Открой [корзину](http://127.0.0.1:8000/cart/).
-5. Проверь название товара, вес и итоговую сумму. При желании измени вес и дождись
-   обновления суммы; без JavaScript сохрани изменение кнопкой формы.
-6. Заполни контакты, выбери доставку или самовывоз. Для доставки укажи адрес.
-7. В комментарии напиши **«ТЕСТ — заказ не выполнять»**, чтобы отличить проверку
-   от обычной заявки в основной БД.
-8. Подтверди согласие и отправь заказ. Если сайт просит подтвердить изменение
-   состава или цены, проверь обновлённую корзину и подтверди её.
-9. На странице успешной отправки сохрани номер заявки вида `R-…`.
-10. Проверь почтовый ящик владельца, включая папку «Спам».
-
-У письма ожидается тема `Розничная заявка R-…`. Номер, состав, вес, цены,
-контакты и способ получения должны совпадать с оформленной заявкой.
-
-## 5. Проверь сохранённый заказ и результат отправки
-
-Открой [админку](http://127.0.0.1:8000/admin/) и войди существующим пользователем.
-
-- В разделе заказов найди заявку по сохранённому номеру, проверь контакты,
-  способ получения и снимки позиций.
-- В [очереди уведомлений](http://127.0.0.1:8000/admin/integrations/notificationoutbox/)
-  найди задачу по тому же номеру. Ожидаются `sent`, заполненное `sent_at` и
-  пустой `last_error`. При успешной первой отправке `attempt_count` равен 1.
-- Во втором терминале ожидается событие `delivery_attempt` с `result: "sent"`.
-
-Статус `sent` означает принятие письма SMTP-сервером. Для завершения проверки
-нужно также фактически получить письмо владельцу.
-
-## 6. При необходимости проверь сохранение заказа без worker
-
-1. Во втором терминале нажми Ctrl+C и дождись завершения worker.
-2. Оформи ещё один заказ через браузер с пометкой «ТЕСТ — заказ не выполнять».
-3. Проверь в админке, что заказ сохранён, а задача уведомления имеет статус `pending`.
-4. Во втором терминале снова выполни:
-
-```bash
-.venv/bin/python manage.py process_notifications
-```
-
-Ожидается отправка сохранённой заявки и изменение её задачи на `sent`.
-Если задача перешла в `manual_review`, проверь безопасный код ошибки, устрани
-причину и используй действие ручного повтора в админке.
-
-## 7. Завершение
-
-Нажми Ctrl+C в терминалах Django и worker. Заказы и результаты проверки останутся
-в основной БД. Создание отдельной БД, её очистка и удаление для этого сценария не нужны.
-
-После изменения `.env` перезапусти worker и сервер, чтобы оба процесса прочитали
-новые значения. Если параметры также экспортированы в shell, сначала обнови
-их или запусти процессы из новой вкладки без прежних экспортов.
-
-[Исторические сценарии проверки Gmail](gmail-smtp-validation.md) ·
-[README](../README.md) · [Индекс проекта](wiki/INDEX.md)
+Автоматические сценарии используют тестовую PostgreSQL и loopback SMTP/mock, без внешней
+отправки; см. [тестовое окружение](test-environment.md).

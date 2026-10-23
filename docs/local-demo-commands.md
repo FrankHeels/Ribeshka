@@ -1,45 +1,29 @@
-# Команды для живой демонстрации
+# Локальная демонстрация
 
-Перед показом проверьте, что в корневом `.env` настроены SMTP и интеграция МойСклад, а в рабочих очередях нет старых заданий, которые не должны быть отправлены. Фоновые исполнители обрабатывают готовые задания выбранной БД, включая отправку уведомлений и передачу заявок в МойСклад при включённом обмене.
+Для показа страниц и форм используй отдельную демонстрационную БД с синтетическим каталогом.
+Формы сохраняют обращения даже без worker. Не запускай это на БД с рабочими заявками.
 
-Откройте три вкладки терминала. В каждой выполняйте команды из корня проекта.
+Убедись, что fishsite_demo ещё не существует. Если существует, сначала проверь её назначение;
+неизвестную БД не очищай и не переиспользуй. Для createdb задай в shell локальные параметры
+PostgreSQL из .env: DJANGO_DB_HOST, DJANGO_DB_PORT и DJANGO_DB_USER. createdb запросит пароль
+PostgreSQL, если он нужен.
 
-**Вкладка 1 — проверка SMTP и запуск сайта:**
+~~~sh
+createdb --host "$DJANGO_DB_HOST" --port "$DJANGO_DB_PORT" --username "$DJANGO_DB_USER" --owner "$DJANGO_DB_USER" fishsite_demo
+DJANGO_DB_NAME=fishsite_demo .venv/bin/python manage.py migrate
+DJANGO_DB_NAME=fishsite_demo .venv/bin/python manage.py seed_demo_catalog
+DJANGO_DB_NAME=fishsite_demo .venv/bin/python manage.py shell -c "from django.db import connection; cursor = connection.cursor(); cursor.execute('SELECT current_database()'); print(cursor.fetchone()[0]); cursor.close()"
+DJANGO_DB_NAME=fishsite_demo DJANGO_DEBUG=true .venv/bin/python manage.py runserver 127.0.0.1:8000
+~~~
 
-```sh
-cd /Users/frankheels/FishSite
-.venv/bin/python manage.py check_notification_smtp && .venv/bin/python manage.py runserver localhost:8000
-```
+Последняя проверка должна напечатать fishsite_demo. Открой http://127.0.0.1:8000/. Оставь SMTP-
+и МойСклад-worker остановленными: они выполняют внешние действия и обрабатывают готовые записи
+выбранной БД.
 
-Сайт: <http://localhost:8000/>. Используйте именно `localhost`: у браузерного ключа Яндекс Карт для него настроен доступ, а `127.0.0.1` считается другим адресом.
+Для реального тестового письма используй [изолированную процедуру
+Mail.ru](mailru-smtp-practical-test.md); для МойСклад — [руководство
+интеграции](moysklad-operations.md). Для Ubuntu VM используй [Compose](deployment-compose.md).
 
-**Вкладка 2 — отправка писем и уведомлений:**
+Останови runserver через Ctrl+C.
 
-```sh
-cd /Users/frankheels/FishSite
-.venv/bin/python manage.py process_notifications
-```
-
-**Вкладка 3 — интеграция с МойСклад:**
-
-```sh
-cd /Users/frankheels/FishSite
-.venv/bin/python manage.py process_moysklad
-```
-
-Этот процесс выполняет фоновые проверки подключения, сверку каталога и цен,
-обработку принятых вебхуков, передачу заявок и обновление их учётных статусов —
-в соответствии с включёнными потоками обмена. Один `runserver` эти задания не выполняет.
-Для постоянной работы запускайте команду без `--once`: этот параметр выполняет
-не более одного готового задания и завершает процесс.
-
-После запуска откройте <http://localhost:8000/admin/moysklad/>: время последнего
-сигнала фонового исполнителя должно обновляться. Действия проверки и сверки в
-админке ставят задания в очередь; после их обработки обновите страницу, чтобы
-увидеть результат.
-
-Оставьте все три вкладки работающими во время показа. Для остановки каждого процесса нажмите `Ctrl+C` в его вкладке.
-
-Для входящих вебхуков дополнительно должен работать ранее настроенный HTTPS-туннель
-ngrok с актуальным адресом приёмника, зарегистрированным в МойСклад. Сам по себе
-запуск трёх процессов не делает `localhost` доступным внешнему сервису.
+[Индекс проекта](wiki/INDEX.md)

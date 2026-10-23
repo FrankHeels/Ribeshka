@@ -1,283 +1,67 @@
-# Frontend template and view contract
+# Public frontend contract
 
-Read this file for template context, URL names and form states. Page requirements
-are in the [page map](wiki/page-map.md); calculations, submission and security
-rules are in the [order flow](wiki/order-flow.md). Select other documents from
-the [project index](wiki/INDEX.md) as needed.
+This document defines visible public-page behavior and interaction states. Route ownership is summarized in [`wiki/page-map.md`](wiki/page-map.md). Retail cart/request and consent rules belong in [`wiki/cart.md`](wiki/cart.md) and [`wiki/public-forms.md`](wiki/public-forms.md); keep detailed domain rules there instead of copying them here.
 
-The public pages use Django templates. Home, information, category, and product
-views load their data from PostgreSQL. Home and the shared assortment menu list
-categories that contain published products; category and product pages show only
-published products without an integration block. The same rule applies to search, recommendations, direct URLs and cart operations. The anonymous retail cart is stored in the server session;
-its add, update, and remove actions validate on the server. Signed checkout snapshots also bind the mapping revision and external identity; a changed mapping requires confirmation. Retail and wholesale
-request forms are enabled. Retail submission is part of the cart;
-wholesale submission collects contacts without a description. Services persist requests
-and outbox tasks atomically, emit transactional pg_notify, and resolve duplicate keys.
-SMTP delivery and the LISTEN worker are implemented independently of the
-owner panel; see [notifications](wiki/notifications.md).
+## Shared page shell
 
-## Shared page context
+- Public pages are Django-rendered. `templates/base.html` owns the document language and viewport, title/description/robots metadata, stylesheet, skip link, header, breadcrumbs, footer, and shared messages.
+- The desktop header and native `<details>` mobile menu expose assortment, wholesale, about, delivery, contacts, and cart. Keep the menu usable without JavaScript; enhancements must preserve keyboard and touch behavior. The cart link has an accessible name and optional line count.
+- The header does not display a phone number. The footer contains links to assortment, about, delivery, contacts, and all three legal documents; do not add contacts or social links there without changing the approved design.
+- `page_title`, optional `seo_title`, `meta_description`, and `meta_robots` feed shared metadata. Set `noindex, nofollow` for request-result pages, legal pages, and errors as appropriate. Request results are also sent with private no-store headers.
 
-- `page_title`: page heading and document title prefix.
-- `seo_title`: optional stored document title; falls back to page_title/brand.
-- `meta_description`: concise, factual description for the page `<meta>` tag.
-- `meta_robots`: optional robots directive; use `noindex, nofollow` for errors.
-- `breadcrumbs`: ordered list of `{label, url?}`; omit on the homepage.
-- `cart_count`: number of distinct currently published product lines in the server-session cart.
-- `messages`: optional Django messages when the messages app is configured.
-- `navigation_categories`: categories with at least one published product, ordered
-  by `display_order`, name, and primary key. The shared assortment menu uses them
-  on every page.
-- `site_settings`: singleton contacts, opening hours and footer signature;
-- `site_links`: lazy ordered collection of named links with optional uploaded logos; blank URLs are omitted;
-  blank values hide the corresponding detail. Provided on every page by the
-  content context processor; never duplicate those values in editorial text.
+## Template context
 
-The base template owns the document language, viewport, shared navigation,
-footer, skip link, breadcrumb navigation, stylesheet, and metadata.
-The header does not display a phone number. On the homepage, `site_links`
-appear only inside the contact panel, below its contact details; each link
-remains independent of the panel's contact-page title link.
-Provide category and product titles and descriptions from published records,
-add only published category/product URLs to the sitemap, and supply appropriately
-sized images with meaningful alt text. There is no public `/catalog/` index page.
+The route view or its presentation function owns each page context. Context processors add common values. When a template contract changes, use those functions as the source of truth and update this table; do not copy backend calculations here.
 
-## Route-specific context
+| Route / template | Values passed to the template |
+|---|---|
+| All public templates | `navigation_categories`: `QuerySet[Category]` with a published, unblocked product; `cart_count`: integer number of distinct public cart lines; `site_settings`: `SiteSettings` or `None`; `site_links`: `QuerySet[SiteLink]` with a nonblank URL. The home view supplies its prefetched navigation categories directly. |
+| `/` — `home.html` | `home_title: str`, `catalog_ready: bool`, `categories: QuerySet[Category]` (each with prefetched `published_products`), `featured_products: list[Product]`, `hero_values: list[dict[str, str]]` (`icon`, `text`), `about_summary: str`, and shared page metadata. |
+| `/catalog/categories/<slug>/` — `catalog/category.html` | `category: Category`, `products: QuerySet[Product]` for the current page, `page_obj: Page`, and shared page metadata/breadcrumbs. The view orders records and paginates 12 per page. |
+| `/catalog/products/<slug>/` — `catalog/product.html` | `product: Product`, `forms_enabled: bool`, `initial_weight` (numeric value; default is one kilogram), `field_errors: dict[str, list[str]]`, and shared page metadata/breadcrumbs. Invalid-weight responses may also pass `field_ids` and cart-issue context; `initial_weight` may then contain the submitted value. |
+| `/cart/` — `orders/cart.html` | `cart_items: list[dict]` (`key: str`, `product: Product`, `price_per_kg: Decimal`, `weight: Decimal`, `weight_display: str`, `weight_errors: list[str]`, `line_total: Decimal or None`); `cart_total: Decimal or None`, `cart_total_is_valid: bool`, `cart_issues: bool`, `cart_issues_message: str`, `cart_error: str or None`, `values: dict`, `field_errors: dict[str, list[str]]`, `form_errors: list[str]`, `price_changed: bool`, `cart_changes: list[dict[str, str]]`, `submission` (`submission_key`, `submission_token`, `consent_url`), and breadcrumbs. On a bound weight error, an item also has the raw `weight_input_value` and `weight_is_bound: bool`. |
+| `/wholesale/` — `inquiries/wholesale.html` | `forms_enabled: bool`, `values: dict`, `field_errors: dict[str, list[str]]`, `form_errors: list[str]`, `page_error: str or None`, `submission` (`submission_key`, `submission_token`, `consent_url`), and breadcrumbs. |
+| `/about/`, `/delivery/`, `/contacts/` | `page_body: str`, `content_notice: str`, breadcrumbs and shared page metadata. Delivery additionally gets `yandex_maps_api_key: str`; contacts additionally gets `contact_location: dict` and the map key. The templates serialize the key only when nonempty. |
+| Legal routes — `content/legal.html` | `legal_html` (renderer-produced safe HTML), `legal_draft_notice: str`, `legal_navigation: list[dict]`, breadcrumbs and `meta_robots`. The archived consent route additionally passes `legal_revision: ConsentRevision`. |
+| Request-result routes | Only generic `page_title` and robots metadata are added to the shared context; no request object or identifier is rendered. |
 
-| Route name | Template | Required context |
-|---|---|---|
-| `home` | `home.html` | `catalog_ready`, all public `categories`, `featured_products`, `home_title`, fixed `hero_values` and `about_summary` from the single `ContentPage.body`. Category cards use published records; composition, hero copy, captions and inquiry steps are fixed. Company and contact text must be confirmed by the client. |
-| `catalog:category` | `catalog/category.html` | A real `category`, its directly assigned published `products`, breadcrumbs for home/current category, optional `page_obj` and `catalog_error`. Resolve unknown slugs as 404; do not expose unpublished products. |
-| `catalog:product` | `catalog/product.html` | A real published `product`, `forms_enabled=True`, `field_errors`, optional `field_ids`, `initial_weight`, and breadcrumbs. The initial weight is always 1 kg to add; invalid POST responses preserve the submitted value. The legend and button always say `Добавить в корзину`. Resolve unknown or unpublished products as 404. Adding the same product increases the line's weight. |
-| `orders:cart` | `orders/cart.html` | Current `cart_items`, `forms_enabled=True`, server `cart_total`, `cart_total_is_valid`, `cart_error`, generic `cart_issues`, `submission`, optional `values`, `field_errors`, `form_errors`, `price_changed`, `cart_changes`, and breadcrumbs. The retail contact form is below the total. |
-| `orders:checkout` | Redirect / cart handler | GET redirects to `/cart/#request`; POST uses the same server-side retail submission handler. The old checkout template is not a separate public screen. |
-| `orders:success` | `orders/success.html` | Verify existence by the unguessable URL token; unknown tokens return 404. Render `Заявка получена` and explain that the manager will confirm availability, quantity and cost. No request object, number, PK, external UUID or contacts in context/HTML/headers. |
-| `inquiries:wholesale` | `inquiries/wholesale.html` | `forms_enabled=True`, signed `submission`, optional submitted `values`, `field_errors`, and form-level `form_errors`. |
-| `inquiries:success` | `inquiries/success.html` | Verify existence by the separate UUID token; unknown/malformed tokens return 404. Render the generic wholesale acceptance message; apply the same identifier restrictions as retail. |
-| `content:about`, `content:delivery` | `content/page.html` (`delivery` extends it) | `page_body` from the single `ContentPage.body`, or an accurate `content_notice` while client material is missing. The delivery map remains below its page text. |
-| `content:contacts` | `content/contacts.html` | Heading and gold divider, phone and `site_links` at left; hours and address at right. Optional email follows the links. The archived contact page body is not rendered; contacts are edited only in general settings. At narrow widths columns stack. `contact_location` supplies the fixed Guryevsk, Kashtanovaya 1B marker, address and external map/directions links below the contacts. `yandex_maps_api_key` is safely serialized only when configured; the map is a progressive enhancement with an address/link fallback. See [map configuration](delivery-map.md). No separate automatic contact card. |
-| `content:privacy`, `content:personal_data_consent`, `content:yandex_metrica_consent` | `content/legal.html` | `legal_html` rendered from allowlisted repository Markdown, `legal_draft_notice`, `legal_navigation` with current-page indication, breadcrumbs and draft `meta_robots`. Privacy keeps CMS title/SEO; its body always comes from Markdown. |
-| `content:consent_revision` | `content/legal.html` | Exact archived consent text plus `legal_revision` with registered identifier, timestamp and SHA-256; unknown IDs return 404. |
+Sources: [`content/views.py`](../content/views.py), [`catalog/views.py`](../catalog/views.py), [`orders/cart/presentation.py`](../orders/cart/presentation.py), [`inquiries/request_flow/presentation.py`](../inquiries/request_flow/presentation.py), [`orders/views.py`](../orders/views.py), and the common context processors in `catalog/`, `orders/`, and `content/`.
 
-## Product and cart data
+## Home and assortment
 
-`categories` contains `{name, slug}` records, optionally `image` with `url` and
-`alt_text`. The homepage displays all categories that have published products,
-and up to 2 featured products. The shared header
-menu exposes the same categories on every page and links back to the homepage
-assortment section. Category pages contain each category's published products.
-The hero displays three approved promises with decorative SVG icons: raw-material
-quality, own production, and modern standards. Below 900 px they follow the
-introductory copy and action. `hero_values` supplies fixed promise captions
-and local decorative icons. The cover has no uploaded image or separate settings
-model. Its action is fixed in the template: «Перейти к ассортименту» with
-`href="#assortment"`. Legacy cover/image/button context cannot override it.
-The fixed hero copy introduces fish for home meals, celebrations and business.
-The about section uses the homepage's single editable body (`about_summary`),
-with a default introduction to «Калининградская рыбёшка» when empty. Its fixed
-companion note explains personal help with selection, quantity and receipt.
-There is no section constructor or upload on page editors, including home.
-Title and SEO remain in a separate collapsed group. The footer's «Информация»
-navigation places «Ассортимент», «О компании», «Доставка», «Контакты» in the left list and all three legal documents in the right list. Cart access remains in the header as an icon with an accessible name and optional quantity badge. Desktop and mobile wholesale navigation use «Опт».
-A separate notice before the hero action always explains that prices are indicative,
-the manager confirms availability of the requested quantity and the final cost,
-and submitting an inquiry does not reserve goods. The page text editor does not
-remove this notice; it remains fully readable on narrow screens.
-`featured_products` follows the two explicit `HomepageRecommendation` slots;
-unpublished, blocked or empty slots are omitted without replacement. These are
-the only sales hits: their cards receive `recommended=True` and the «Хит» badge
-only in the homepage section. Category pages have no sales-hit filter or badge;
-the legacy `?popular=1` parameter does not change their product list or pagination.
-The stored legacy `Product.is_popular` flag is no longer exposed in the product
-editor and does not affect public display or recommendation selection. Product ordering uses
-`display_order`, name and pk; category/product metadata uses stored SEO fallback.
-A product card requires
-`{name, slug}` and may include `short_description`, `price_per_kg` as `Decimal`,
-and `primary_photo` with `url` and `alt_text`. A product page additionally
-needs `id`, `description`, and ordered `photos`. Retail weight is a whole number
-of kilograms from 1 to 99,999, with a 1 kg step for every product. The legacy
-`Product.minimum_weight` and `Product.weight_step` fields do not control public
-retail selection. The view must provide only published products and must calculate
-all money values on the server. Browser weight and price fields are input hints,
-not trusted values.
+- `/` has a fixed hero, category assortment, up to two configured recommendation slots, a short company section, the request steps, and delivery/contact panels. The hero action jumps to `#assortment`; there is no public aggregate `/catalog/` page.
+- Home categories and recommendations use only public records. Missing category imagery falls back to a sample product image, then to a text placeholder. A missing public assortment gets a visible empty state.
+- The hero notice always says prices are indicative, the manager confirms availability and final cost, and a request does not reserve stock. Keep this next to the primary action and readable on narrow screens.
+- The home company copy comes from the single editable home body. The companion note remains selectable HTML. The home contact panel links to the contact page and renders the configured phone, email, address, hours and site links; missing details use the shared empty state.
+- Category pages list public products and paginate. Product cards show the current public price as indicative. Product detail shows the product’s price/weight information and explains that the manager confirms current price and availability.
 
-Category and homepage recommendation cards label the shown price as indicative
-and direct availability questions to the manager. Without a shown price, the
-card directs both price and availability questions to the manager. Product pages
-explain near the price and weight selector that the manager confirms the current
-price and available quantity; the selected weight is the customer's request.
-The cart summary also requires confirmation of availability, actual weight,
-delivery cost and the final total. Keep this explanation beside the preliminary
-total, without a duplicate banner before the submit button or another checkbox.
-These notices remain fully readable on narrow screens.
+## Product weight and cart controls
 
-Information sections may also contain `image`/`image_alt`; retain escaped
-paragraphs and meaningful image descriptions. Contacts render structured
-`site_settings` independently of a blank editorial lead. Legal bodies continue
-to use repository Markdown.
+- Product and cart weight inputs are whole kilograms from 1 to 99,999, step 1. Provide manual entry, numeric input mode, and labelled decrement/increment buttons. Hide the buttons until their JavaScript enhancement is ready; the form must remain usable without JavaScript.
+- On the cart page, JavaScript saves a valid edited weight as the visitor changes it. Process line updates sequentially; a stale response must not replace the result for a newer edit. Keep current amounts stable while a valid edit is pending; hide amounts that are invalid or cannot be confirmed and announce the total state through the existing polite live region.
+- Without JavaScript, `Сохранить вес` submits a change. There is no separate Update button. Removing a line remains available when its weight field is invalid. Keep field and removal errors beside their controls and preserve the visitor’s input and focus during updates.
+- Keep the preliminary total visibly qualified: the manager confirms availability, actual weight, delivery cost, and final amount. Do not present it as a confirmed charge.
+- `wiki/cart.md` owns session/cart values, pricing and confirmation rules. This section records only the UI behavior.
 
-`admin:product_preview` renders a draft only after staff+OTP and catalog view
-permission. It sets `preview_mode=True`, `forms_enabled=False`, `no-store` and
-`noindex, nofollow, noarchive`. Public product URLs still return 404 for drafts.
+## Forms and accessible feedback
 
-Each `cart_items` entry contains a stable numeric product-ID `key`, a currently
-published `product`, its current server-verified `price_per_kg`, desired `weight`
-as `Decimal`, string `weight_display`, and server-calculated `line_total`. The session
-stores only string product IDs and string weights; it stores no price history.
-Adding the same product increases its weight; updating a cart line sets its
-absolute weight. Validate both the added amount and the accumulated weight,
-returning a field error without changing that line on overflow or when its
-existing weight is fractional. The total is the sum of rounded line
-totals in `cart_total`. Display valid whole weights without a decimal part,
-including historical values such as `2.000`. If a well-formed old session line
-contains a fractional weight, keep the original value in the line
-and attach a `weight_errors` message; never silently round it. Omit that line's
-`line_total` and the aggregate `cart_total` until the visitor updates it; totals
-for other valid lines may remain visible. A changed catalog price is shown
-immediately on the next request with a recalculated preliminary sum. An optional
-`weight_errors` sequence belongs to that item only.
-Never reveal the title or other details of an unpublished item in
-a public cart error; use a generic `cart_issues_message` and require the user
-to review the cart again.
+- Retail request submission is on `/cart/`; `/checkout/` GET redirects to the cart form. Wholesale uses `/wholesale/`. Keep both forms server-rendered with CSRF fields and usable without JavaScript.
+- Show a linked, keyboard-focusable error summary when a form has errors. Keep field errors adjacent to inputs and connect them with `aria-describedby` and `aria-invalid`. Use visible labels, semantic buttons, and visible keyboard focus.
+- The retail form includes the delivery/self-pickup choice and contact fields; its address control may be enhanced for the selected method, but the page must still explain and submit correctly without JavaScript. The wholesale form has its own fields and success state.
+- The two success routes render generic messages only. Do not show an order/request number, database ID, external identifier, personal contact data, or hidden identifier in the HTML or headers.
+- Retain the skip link, semantic headings and landmarks, meaningful image alternatives, and live announcements for asynchronous updates. Do not move focus for routine cart recalculation.
 
-## Form behavior and errors
+## Information pages and maps
 
-Product cart controls and both request forms are enabled. Add/update/remove cart
-actions change only the session; `action=submit` posts the retail request from the cart.
-The legacy checkout POST delegates to that handler. Product and cart weight controls use `inputmode="numeric"`, `min="1"`,
-`max="99999"`, and `step="1"`. The server enforces whole
-kilograms from 1 to 99,999. Both screens have decrement/increment buttons with accessible
-names, change the whole weight by 1 kg and never silently round invalid input.
-They are hidden without JavaScript; manual entry and form submission remain
-available. Both inputs are sized for two digits and have no native spinner. Product
-buttons only select the added weight; the add submit button saves it. Cart changes
-use CSRF protection and a post/redirect/get flow. On the cart page, a small
-JavaScript enhancement sends weight changes immediately and refreshes the
-server-calculated line amounts and total without navigation. Requests, including
-removal, run sequentially within the page. The last confirmed amounts stay visible
-while a valid weight is pending; matching server responses replace them instantly
-without animation. Stale responses do not overwrite amounts for a newer edited
-weight. Invalid weights and failed saves hide their line amount and the aggregate
-total while preserving their space; the input and focus remain in place.
-The summary and amount containers stay in the DOM: `data-cart-line-total-value`
-and `data-cart-total-value` carry server amounts; availability flags are set on
-the line amount and the `data-cart-total` container.
-Unavailable amounts use `visibility` and `aria-hidden`. The visible
-status banner is removed. A visually hidden live region announces the total's
-state, and field/removal errors remain visible beside their controls.
-There is no Update button. Without JavaScript, the
-`Сохранить вес` submit button provides the same server validation and persistence.
-Removing a line bypasses
-browser weight validation. Cart reconciliation refreshes `submission_key` and
-`submission_token` from the server while preserving the contact fields. It also
-refreshes the separate confirmation prompt. Retail submit is prevented while
-weights are pending, failed, or invalid. Request views pass `values`, a
-`field_errors` mapping keyed by the HTML field names, a `form_errors` sequence,
-and an optional `page_error`. Field errors render beside their control and in
-the summary. Keep `aria-invalid` and `aria-describedby` attached to errors.
+- About and delivery copy comes from the corresponding content page. The contacts page renders configured primary and secondary phones, email, site links, hours, and address. Its map uses the separately configured fixed contact location below those details; keep address and external map links available if the embed fails.
+- The delivery page places its map after the text. Keep the static zone legend and textual fallback when the map is unavailable. See [`delivery-map.md`](delivery-map.md) for map behavior and provenance.
+## Legal pages
 
-Retail field names: `name`, `phone`, `email`, `pickup_method`, `address`,
-`comment`, `consent`, and optional `confirm_updated_cart`. Wholesale field
-names: `contact_name`, `company`, `phone`, `email`, and `consent`. The `need` field is absent;
-the service ignores any browser-supplied description and saves an empty legacy field.
-Address is required by the server only for delivery. The small JavaScript file
-only hides the address field and toggles its browser `required` hint; the view
-must enforce the delivery rule without JavaScript.
+- Legal bodies come from the allowlisted Markdown files in `docs/legal/`. Their content is runtime text: do not edit or normalize those files during Wiki maintenance. The renderer escapes raw HTML, rewrites known local legal links, and supports semantic tables with a keyboard-focusable narrow-screen wrapper.
+- The legal template displays the “Проект документа” notice on ordinary and archived-revision pages. Archived consent content is preserved separately with its identifier, timestamp, and SHA-256; do not imply that this notice or the archived route constitutes legal approval.
+- Consent form links resolve to the exact archived revision used by the submission flow. The privacy policy is a separate informational link. The Metrica consent page is legal text only; it does not establish that a counter, banner, cookie preference, or tracker is implemented. Yandex Maps is a separate feature.
+- Legal pages currently use `noindex, nofollow` and are excluded from the sitemap. Filling in the Markdown alone does not remove the project notice, robots directive, or sitemap exclusion. After the text is approved, update the renderer/view metadata, template notice, and sitemap deliberately.
 
-Both forms carry hidden `submission_key` (UUID), `submission_token` (signed claim),
-and honeypot `website`. The checkbox link uses `submission.consent_url`, which
-opens the exact archived revision named inside the claim. Claims include form
-kind, a stable server-session nonce and the consent revision ID;
-retail claims additionally include the shown product IDs, names, prices, whole
-weights, and `requires_confirmation`. Forms in separate tabs have independent
-keys/snapshots. Field errors for technical hidden controls become form-level
-messages. Phone formatting allows 5–15 digits, an initial +, spaces, parentheses,
-a dot and a hyphen; address/comment/company lengths are checked server-side.
-Validation and cart-confirmation re-renders preserve the signed revision and link.
-An invalid/unknown revision or a legacy token without a revision returns a fresh
-form with consent unchecked and cannot create a request. A successful idempotent
-retry resolves the already accepted request before other validation and keeps
-its saved revision.
+## Visual implementation
 
-Before creating a retail request, lock products in stable ID order and re-read
-publication, name, price, composition and whole weights. Compare with the signed
-snapshot. On mismatch, HTTP 409 supplies a new claim and unchecked explicit
-confirmation; a confirmation pre-sent with the stale claim cannot authorize it.
-Missing confirmation is 400. Empty or invalid carts never create requests.
-Browser prices and totals are ignored. Successful creation redirects to the
-token URL and clears the retail cart; an accepted key resolves before validation
-and rate limiting so a retry returns the same result without clearing a new cart.
-
-CSRF and honeypot protect both forms. PostgreSQL rate windows are shared across
-processes and keyed by HMAC of form kind/REMOTE_ADDR; defaults are 20 attempts per
-3600 seconds. Missing or invalid CSRF protection returns 403. Limit errors are 429, validation errors 400, temporary persistence
-errors 503 with a safe retry message. Isolated persistence failures preserve
-values and the form key. A complete database outage uses a 503 renderer without
-session access or database-backed context processors. The message does not assert
-that an uncertain commit failed; retry the original form with the same key.
-Rendered cart/form and request-submission responses use `private, no-store`; success
-responses additionally set `noindex, nofollow`. Success pages expose only a number.
-Request, retail item snapshots and outbox save in one transaction, with pg_notify
-on the same connection. HTTP never waits for SMTP; no email worker is active yet.
-
-`cart_changes` contains already-sanitized `{message}` entries for visible price
-changes or generic notices for unavailable items; never expose an unpublished
-product name or its data while explaining a cart change.
-
-## URL names
-
-- `home`
-- `catalog:category`, `catalog:product`
-- `orders:cart`, `orders:checkout`, `orders:success`
-- `inquiries:wholesale`, `inquiries:success`
-- `content:about`, `content:delivery`, `content:contacts`, `content:privacy`
-- `content:personal_data_consent`, `content:yandex_metrica_consent`
-
-## Contact links and footer
-
-`SiteLink` rows belong to the singleton settings. Each has name, URL and optional
-validated JPEG/PNG/WebP logo. The settings inline allows adding/deleting links
-using the existing settings-change permission. Empty URL rows are hidden; without
-an image the anchor displays its name, and with an image it displays a 32px logo
-inside a minimum 44px target. An accessible name is always retained. Links appear
-on contacts and home, with no external content fetching. Existing fixed messenger
-URLs are migrated once; their old fields remain archived and are no longer edited.
-
-The footer follows the supplied reference: original brand logo at left and two
-navigation columns beside it: four site links at left and three legal links at right.
-There is no wholesale link in the footer. It contains no phone, email, address,
-hours, social links or explanatory text under the logo. The saved footer
-signature stays in the lower row. The old footer-copy setting is archived.
-
-## Content persistence boundary
-
-Five fixed ContentPage keys map to the existing routes only. The view loads a
-page in one query without legacy section queries. No content cache is configured.
-Home/about/delivery have one editable `body`; home renders it in its about section.
-The contacts record remains archived and excluded from the page admin queryset,
-including direct edits; its body does not affect the public contact layout. Legacy `ContentSection` rows and uploaded files are preserved as
-an archive and do not affect public output. Migration 0008 copies information
-page texts in lead-first/display-order sequence and the home about text.
-Existing neutral UI fallbacks remain when material is missing.
-All stored text is escaped, with paragraph/line-break filters; never apply safe.
-See [data-layer.md](data-layer.md) for fixed keys, migrations and ORM boundaries.
-
-Legal document bodies are the explicit repository-file exception: the fixed
-allowlist in `content/legal_documents.py` reads `docs/legal/*.md` and uses
-Python-Markdown with tables. Raw HTML is escaped before conversion, local
-document links are reversed to site routes, and generated HTML is marked safe.
-No request values or CMS body text enter this renderer; placeholders remain
-literal text. Document headings, lists and tables are semantic; table wrappers
-allow keyboard focus and horizontal scrolling on narrow screens. All documents
-are linked in the footer. Retail and wholesale consent checkboxes link the
-separate consent document; the policy link is informational text outside the
-checkbox label. No analytics permission is bundled into a request form.
-The form link targets `/personal-data-consent/revisions/<revision_id>/`; the
-route renders the archived source bytes used to make the signed claim, with its
-identifier, registration time, and SHA-256.
-
-Delivery extends the shared content template with a map after all CMS sections.
-Only this view supplies `yandex_maps_api_key` from `YANDEX_MAPS_API_KEY`; a nonempty
-key is serialized with `json_script` and enables the delivery JS module. Zones
-remain static client data. See [delivery-map.md](delivery-map.md) for configuration,
-reference geometry and graceful failure states.
+Responsive behavior, typography, CSS build and static asset versioning are owned by [`design-system.md`](design-system.md).

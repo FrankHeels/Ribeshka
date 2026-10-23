@@ -1,13 +1,22 @@
 # Local fonts
 
-WOFF2 files from the official Google Fonts CSS API (downloaded 2026-09-26).
-Each family is distributed under SIL Open Font License 1.1. The corresponding
-unmodified OFL text is included in this directory.
+The active storefront uses Cormorant Garamond and Golos Text. WOFF2 files
+are served locally; declarations, weights and original Unicode ranges are in
+[frontend/fonts.css](../../frontend/fonts.css). Interface roles belong to the
+[design system](../../docs/design-system.md).
 
-Instrument Serif / Work Sans follow the client guide. Cormorant Garamond /
-Golos Text supply Cyrillic glyphs; JetBrains Mono is used for small labels.
-Only the Latin and Cyrillic subsets are included. Definitions and original
-Unicode ranges are in `frontend/fonts.css`; weights are 400 for display faces,
-400–600 for body faces, and 500–600 for JetBrains Mono.
+## Sources and licences
 
-Upstream: https://github.com/google/fonts/tree/main/ofl
+Files originate from the official Google Fonts CSS API. The unmodified SIL
+Open Font License 1.1 for each family is included alongside its local files:
+
+| Family | Local licence | Upstream |
+|---|---|---|
+| Cormorant Garamond | [OFL](cormorantgaramond-OFL.txt) | [Metadata and subsets](https://github.com/google/fonts/blob/main/ofl/cormorantgaramond/METADATA.pb) |
+| Golos Text | [OFL](golostext-OFL.txt) | [Project](https://github.com/googlefonts/golos-text), [metadata](https://github.com/google/fonts/blob/main/ofl/golostext/METADATA.pb) |
+
+For redistribution or replacement, retain the corresponding licence and
+check the included glyph ranges against the text being displayed.
+
+Instrument Serif, Work Sans and JetBrains Mono files remain in the directory
+with their OFL texts; they are not loaded by the active font stylesheet.
