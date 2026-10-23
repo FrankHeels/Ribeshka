@@ -15,8 +15,10 @@
 #   agents.max_concurrent_threads_per_session
 
 # Root / TDD orchestrator
+#model = "gpt-6-astra"
+#model_reasoning_effort = "xhigh"
 model = "gpt-6.1-sol"
-model_reasoning_effort = "max"
+model_reasoning_effort = "high"
 
 # Safe interactive defaults. Change if your workflow needs otherwise.
 approval_policy = "on-request"

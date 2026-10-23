@@ -2,7 +2,7 @@ name = "reviewer"
 description = "Read-only independent reviewer. Use after implementation to find correctness and regression risks, missing tests, and concrete code improvements or refactoring opportunities."
 
 model = "gpt-6-astra"
-model_reasoning_effort = "medium"
+model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """
