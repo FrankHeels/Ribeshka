@@ -1,0 +1,22 @@
+{% extends "admin/change_form.html" %}
+{% load unfold %}
+
+{% block form_after %}
+  {{ block.super }}
+  {% if can_request_moysklad_export %}
+    <section class="backoffice-integration-note backoffice-request-actions">
+      <p>Сначала свяжитесь с покупателем и согласуйте заявку. После этого отправьте её в МойСклад.</p>
+      <form method="post" action="{% url 'admin:moysklad_order_export' original.pk %}">
+        {% csrf_token %}
+        {% component "unfold/components/button.html" with submit=1 size="lg" %}Отправить в МойСклад{% endcomponent %}
+      </form>
+    </section>
+  {% endif %}
+  {% if can_delete_request %}
+    <section class="backoffice-request-actions">
+      {% if deletion_requested %}<p>Заявка ожидает удаления. При ошибке можно подтвердить повтор удаления.</p>{% endif %}
+      {% url 'admin:orders_order_delete' original.pk as delete_url %}
+      {% component "unfold/components/button.html" with href=delete_url variant="danger" size="lg" %}{% if deletion_requested %}Проверить удаление / повторить{% else %}Удалить заявку{% endif %}{% endcomponent %}
+    </section>
+  {% endif %}
+{% endblock %}

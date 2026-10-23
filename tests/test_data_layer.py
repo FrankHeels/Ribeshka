@@ -494,7 +494,7 @@ class AdminTests(TestCase):
 
     # Суперпользователь не должен видеть поле снимка в форме заказа; поддельный
     # POST с изменением/удалением позиции отклоняется и оставляет заявку неизменной,
-    # а удаление самого заказа через админку запрещено ответом 403.
+    # а удаление самого заказа требует отдельного confirm=yes.
     def test_request_snapshots_are_read_only_in_admin(self):
         user = get_user_model().objects.create_superuser(username="test-admin", email="")
         login_verified_admin(self.client, user)
@@ -510,4 +510,6 @@ class AdminTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(item.product_name_snapshot, "Исторический товар")
         self.assertEqual(order.name, "Тест")
-        self.assertEqual(self.client.post(reverse("admin:orders_order_delete", args=[order.pk]), {"post": "yes"}).status_code, 403)
+        self.assertEqual(self.client.post(reverse("admin:orders_order_delete", args=[order.pk]), {"post": "yes"}).status_code, 400)
+        self.assertTrue(Order.objects.filter(pk=order.pk).exists())
+        self.assertTrue(OrderItem.objects.filter(pk=item.pk).exists())

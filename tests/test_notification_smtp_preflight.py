@@ -112,12 +112,13 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
         message_send.assert_not_called()
 
     # Базовый Mail.ru SSL-профиль: TLS-контекст проверяет сертификат и hostname,
-    # AUTH идёт после создания SSL-соединения, соединение закрывается; отправка
-    # письма и SMTP-команды передачи данных не вызываются.
+    # AUTH идёт после создания SSL-соединения, соединение закрывается; обычный
+    # SMTP, отправка письма и SMTP-команды передачи данных не вызываются.
     def test_m01_implicit_tls_uses_verified_context_before_auth_and_closes(self):
         client, events = self.client_mock()
         with (
             patch("django.core.mail.backends.smtp.smtplib.SMTP_SSL", return_value=client) as smtp_factory,
+            patch("django.core.mail.backends.smtp.smtplib.SMTP") as plain_smtp_factory,
             patch(
                 "django.core.mail.backends.smtp.EmailBackend.send_messages",
                 side_effect=AssertionError("send_messages must never be called"),
@@ -130,6 +131,7 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
             stdout, stderr = self.run_command()
 
         smtp_factory.assert_called_once()
+        plain_smtp_factory.assert_not_called()
         args, kwargs = smtp_factory.call_args
         self.assertEqual(args, ("smtp.mail.ru", 465))
         self.assertEqual(kwargs["timeout"], 10)
@@ -145,46 +147,6 @@ class NotificationSMTPPreflightTests(SimpleTestCase):
         self.assert_no_message_send(send_messages, message_send)
         for method in ("sendmail", "mail", "rcpt", "data"):
             getattr(client, method).assert_not_called()
-
-    # Явный SSL-профиль на порту 465: создаётся только SMTP_SSL с проверенным
-    # TLS-контекстом, STARTTLS и обычный SMTP не используются; AUTH и close
-    # выполняются, письмо не отправляется.
-    def test_g02_ssl_uses_verified_context_without_starttls(self):
-        profile = {
-            "EMAIL_PORT": 465,
-            "EMAIL_USE_TLS": False,
-            "EMAIL_USE_SSL": True,
-        }
-        client, events = self.client_mock()
-        with (
-            patch("django.core.mail.backends.smtp.smtplib.SMTP_SSL", return_value=client) as smtp_ssl_factory,
-            patch("django.core.mail.backends.smtp.smtplib.SMTP") as smtp_factory,
-            patch(
-                "django.core.mail.backends.smtp.EmailBackend.send_messages",
-                side_effect=AssertionError("send_messages must never be called"),
-            ) as send_messages,
-            patch(
-                "django.core.mail.message.EmailMessage.send",
-                side_effect=AssertionError("EmailMessage.send must never be called"),
-            ) as message_send,
-        ):
-            stdout, stderr = self.run_command(profile)
-
-        smtp_ssl_factory.assert_called_once()
-        args, kwargs = smtp_ssl_factory.call_args
-        self.assertEqual(args, ("smtp.mail.ru", 465))
-        self.assertEqual(kwargs["timeout"], 10)
-        tls_context = kwargs["context"]
-        self.assertIs(tls_context.verify_mode, ssl.CERT_REQUIRED)
-        self.assertIs(tls_context.check_hostname, True)
-        self.assertEqual([event[0] for event in events], ["login", "quit"])
-        client.starttls.assert_not_called()
-        client.login.assert_called_once_with("notifications@mail.ru", "synthetic-app-password-marker")
-        client.quit.assert_called_once_with()
-        smtp_factory.assert_not_called()
-        self.assertEqual(stderr, "")
-        self.assertIn("no email was sent", stdout)
-        self.assert_no_message_send(send_messages, message_send)
 
     # 18 вариантов некорректной конфигурации (backend, host/TLS/порт,
     # credentials, адреса отправителя/логина, insecure override и тип порта)

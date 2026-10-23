@@ -15,6 +15,7 @@ from django.conf import settings
 
 from .config import get_config
 from .contracts import MoySkladError
+from .request_guard import ensure_request_task
 from .throttling import ApiThrottle
 
 
@@ -28,6 +29,7 @@ _RESOURCE = re.compile(
     rf"|/metadata(?:/states(?:/{_UUID})?)?)?|context/companysettings(?:/pricetype(?:/{_UUID})?)?)\Z"
 )
 _WRITABLE = re.compile(rf"entity/(?:customerorder|webhook)(?:/{_UUID})?\Z")
+_DELETABLE = re.compile(rf"entity/customerorder/{_UUID}\Z")
 _PARAMETERS = frozenset(("limit", "offset", "filter", "expand", "order"))
 
 
@@ -151,26 +153,34 @@ class MoySkladClient:
     def put(self, path, *, json):
         return self._request("PUT", path, json=json)
 
+    def delete(self, path):
+        return self._request("DELETE", path)
+
     def _request(self, method, path, *, params=None, json=None):
         if self._closed:
             raise MoySkladError("client_closed")
         if self.readonly_probe and method != "GET":
             raise MoySkladError("readonly_probe")
+        if method not in ("GET", "POST", "PUT", "DELETE"):
+            raise MoySkladError("invalid_resource")
         if not isinstance(path, str) or not _RESOURCE.fullmatch(path):
             raise MoySkladError("invalid_resource")
         if method != "GET" and not _WRITABLE.fullmatch(path):
+            raise MoySkladError("invalid_resource")
+        if method == "DELETE" and (not _DELETABLE.fullmatch(path) or params is not None or json is not None):
             raise MoySkladError("invalid_resource")
         if method != "GET" and path.startswith("entity/webhook") and not self.webhook_management:
             raise MoySkladError("webhook_management_required")
         params = _parameters(params)
         try:
-            content = None if method == "GET" else _json_number(json).encode("utf-8")
+            content = None if method in ("GET", "DELETE") else _json_number(json).encode("utf-8")
         except (TypeError, ValueError, OverflowError, RecursionError):
             raise MoySkladError("invalid_payload") from None
         token = self._throttle.acquire(access_probe=self.readonly_probe) if self._throttle else None
         try:
             if self._throttle:
                 self._throttle.heartbeat(token)
+            ensure_request_task()
             try:
                 status, headers, body = self._runner.run(self._send(method, path, params, content))
             except (httpx.TimeoutException, TimeoutError):
@@ -194,7 +204,7 @@ class MoySkladClient:
                 raise MoySkladError("not_found", status_code=status)
             if status < 200 or status >= 300:
                 raise MoySkladError("validation_error" if status == 400 else "http_error", status_code=status)
-            if not body and status == 204:
+            if not body and (status == 204 or (method == "DELETE" and status == 200)):
                 return None
             try:
                 return json_module.loads(body, parse_float=Decimal, parse_constant=self._invalid_constant)

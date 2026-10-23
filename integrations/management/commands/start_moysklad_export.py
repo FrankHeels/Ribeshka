@@ -1,4 +1,4 @@
-"""Explicitly begin new-order registration without exporting historical orders."""
+"""Prepare consent and exchange; each order still needs owner approval."""
 
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.core.management.base import BaseCommand, CommandError
@@ -9,7 +9,7 @@ from integrations.moysklad.controls import command_actor, start_export
 
 
 class Command(BaseCommand):
-    help = "Start registration and sending of new orders; requires a technical administrator (superuser)."
+    help = "Approve consent and enable delivery of owner-selected orders; requires a technical administrator (superuser)."
 
     def add_arguments(self, parser):
         parser.add_argument("--username", required=True)

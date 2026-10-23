@@ -24,6 +24,21 @@ class InquirySubmissionResult:
     inquiry: Inquiry
 
 
+def delete_inquiry(inquiry_id, *, actor):
+    """Delete one confirmed wholesale request and its inactive notification."""
+    from integrations.request_deletion import locked_request_outbox, require_request_deletion
+
+    require_request_deletion(actor, "inquiries", "inquiry")
+    with transaction.atomic():
+        inquiry = Inquiry.objects.select_for_update().filter(pk=inquiry_id).first()
+        if inquiry is None:
+            return "deleted"
+        outbox = locked_request_outbox(inquiry=inquiry)
+        outbox.delete()
+        inquiry.delete()
+    return "deleted"
+
+
 def wholesale_submission_fields(request, submission_key=None, *, consent_revision=None, consent_revision_id=None):
     if consent_revision is None:
         consent_revision = (

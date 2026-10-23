@@ -601,14 +601,14 @@ class MoySkladPlanAcceptanceTests(TransactionTestCase):
 
     def test_multiple_orders_survive_api_outage_and_unbounded_retries_with_frozen_identities(self):
         from catalog.pricing import change_product_price
-        from integrations.moysklad.order_export import enqueue_order_export
+        from integrations.moysklad.order_export import request_order_export
         from integrations.moysklad.worker import MoySkladWorker
 
         self.set_stream("export", True)
         source, product = self.make_linked_product(price="102.50")
         self.set_stream("prices", False)
         order_data = [self.make_order(product, source, weight=str(weight)) for weight in (1, 2, 3)]
-        links = [enqueue_order_export(order) for order, _item in order_data]
+        links = [request_order_export(order.pk, actor=self.owner) for order, _item in order_data]
         frozen = {
             link.pk: (link.sync_id, self.accepted_snapshot(link.order))
             for link in links

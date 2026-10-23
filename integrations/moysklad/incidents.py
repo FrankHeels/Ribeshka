@@ -127,6 +127,23 @@ def close_recovered_order_incidents(*, account_id, environment):
         _close_observed_incident(incident)
 
 
+def retire_deleted_order_incidents(*, account_id, environment, order_number):
+    """Retire only this order's object errors, serializing with coalescing."""
+    incidents = MoySkladIncident.objects.select_for_update().filter(
+        account_id=account_id, environment=environment, scope="order_export",
+        closed_at__isnull=True, object_ids__contains=[order_number],
+    ).exclude(code__in=("document_limit", "processing_delayed", "access_denied")).order_by("pk")
+    for incident in incidents:
+        # The row lock makes open_incident re-read our result before merging
+        # another observation; a shared incident keeps all its other orders.
+        incident.object_ids = [value for value in incident.object_ids if value != order_number]
+        fields = ["object_ids"]
+        if not incident.object_ids:
+            incident.closed_at = timezone.now()
+            fields.append("closed_at")
+        incident.save(update_fields=fields)
+
+
 def monitor_integration(*, using="default", now=None):
     """Inspect only local durable state, independently of the API worker."""
     config = get_config()
@@ -144,8 +161,8 @@ def monitor_integration(*, using="default", now=None):
     if state is None:
         return
     api_state = MoySkladApiState.objects.using(using).filter(account_id=state.account_id).first()
-    access_error_code = api_state.access_error_code if api_state else state.access_error_code
-    export_paused = api_state.export_paused if api_state else state.export_paused
+    access_error_code = api_state.access_error_code if api_state else ""
+    export_paused = api_state.export_paused if api_state else False
     target = dict(account_id=state.account_id, environment=state.environment, using=using)
     tasks = MoySkladTask.objects.using(using).filter(
         account_id=state.account_id, environment=state.environment,

@@ -67,6 +67,10 @@ class MoySkladOrderLink(models.Model):
     status_checked_at = models.DateTimeField(null=True, blank=True)
     last_error_code = models.CharField(max_length=64, blank=True)
     exported_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="moysklad_order_approvals")
+    deletion_requested_at = models.DateTimeField(null=True, blank=True)
+    deletion_requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="moysklad_order_deletions")
     override_payload = models.JSONField(default=dict, blank=True)
     override_reason = models.TextField(blank=True)
     override_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="moysklad_order_overrides")
@@ -140,12 +144,6 @@ class MoySkladSyncState(models.Model):
         related_name="moysklad_export_approvals",
     )
     heartbeat_at = models.DateTimeField(null=True, blank=True)
-    api_next_at = models.DateTimeField(null=True, blank=True)
-    api_lease_token = models.UUIDField(null=True, blank=True)
-    api_lease_expires_at = models.DateTimeField(null=True, blank=True)
-    api_paused_until = models.DateTimeField(null=True, blank=True)
-    access_error_code = models.CharField(max_length=64, blank=True)
-    export_paused = models.BooleanField(default=False)
     status_next_at = models.DateTimeField(null=True, blank=True)
     prices_next_at = models.DateTimeField(null=True, blank=True)
     webhook_id = models.UUIDField(null=True, blank=True)
@@ -164,7 +162,6 @@ class MoySkladSyncState(models.Model):
         app_label = "integrations"
         constraints = [
             models.UniqueConstraint(fields=("account_id", "environment"), name="ms_sync_target_unique"),
-            models.CheckConstraint(condition=(Q(api_lease_token__isnull=True, api_lease_expires_at__isnull=True) | Q(api_lease_token__isnull=False, api_lease_expires_at__isnull=False)), name="ms_api_lease_consistent"),
         ]
         permissions = [
             ("manage_moysklad", "Может управлять обменом с МойСклад"),
@@ -219,6 +216,7 @@ class MoySkladTask(models.Model):
     class Kind(models.TextChoices):
         PRICE = "price", "Цена"
         EXPORT_ORDER = "export_order", "Передача заявки"
+        DELETE_ORDER = "delete_order", "Удаление заявки"
         WEBHOOK = "webhook", "Обработка уведомления"
         CATALOG_SYNC = "catalog_sync", "Сверка каталога"
         PRICE_RECONCILIATION = "price_reconciliation", "Сверка цен"
@@ -258,10 +256,11 @@ class MoySkladTask(models.Model):
         ordering = ("created_at", "pk")
         constraints = [
             models.UniqueConstraint(fields=("account_id", "environment", "kind", "dedupe_key"), condition=Q(status__in=("pending", "processing")), name="ms_task_active_unique"),
-            models.UniqueConstraint(fields=("account_id", "environment", "kind", "dedupe_key"), condition=Q(kind__in=("export_order", "webhook")), name="ms_task_permanent_unique"),
+            models.UniqueConstraint(fields=("account_id", "environment", "kind", "dedupe_key"), condition=Q(kind__in=("export_order", "delete_order", "webhook")), name="ms_task_permanent_unique"),
             models.UniqueConstraint(fields=("order_link",), condition=Q(kind="export_order", order_link__isnull=False), name="ms_task_order_export_unique"),
+            models.UniqueConstraint(fields=("order_link",), condition=Q(kind="delete_order", order_link__isnull=False), name="ms_task_order_delete_unique"),
             models.UniqueConstraint(fields=("inbox",), condition=Q(kind="webhook", inbox__isnull=False), name="ms_task_inbox_unique"),
-            models.CheckConstraint(condition=Q(kind__in=("price", "export_order", "webhook", "catalog_sync", "price_reconciliation", "status_sync", "check_access")), name="ms_task_kind_valid"),
+            models.CheckConstraint(condition=Q(kind__in=("price", "export_order", "delete_order", "webhook", "catalog_sync", "price_reconciliation", "status_sync", "check_access")), name="ms_task_kind_valid"),
             models.CheckConstraint(condition=(Q(status="processing", lease_token__isnull=False, lease_expires_at__isnull=False) | Q(status__in=("pending", "done", "failed", "manual_review"), lease_token__isnull=True, lease_expires_at__isnull=True)), name="ms_task_state_lease_consistent"),
         ]
         indexes = [

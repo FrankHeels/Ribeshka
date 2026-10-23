@@ -71,7 +71,7 @@ npm --prefix frontend run watch:css
 | Создать обычного владельца, настроить TOTP, управлять заявками | [Панель владельца](docs/backoffice.md) |
 | Настроить SMTP, проверить соединение, запустить почтовый worker | [Уведомления](docs/wiki/notifications.md) |
 | Проверить настоящее письмо Mail.ru на отдельной БД | [Ручная проверка SMTP](docs/mailru-smtp-practical-test.md) |
-| Связать товары, включить цены и передачу розничных заявок в МойСклад | [Эксплуатация обмена](docs/moysklad-operations.md) |
+| Связать товары, включить цены и ручную передачу в МойСклад | [Эксплуатация обмена](docs/moysklad-operations.md) |
 | Настроить карты и ключ Яндекса | [Карты](docs/delivery-map.md) |
 | Запустить приватный Compose-стенд | [Docker Compose](docs/deployment-compose.md) |
 | Подготовить публичный сервер, HTTPS и восстановление | [Спецификация запуска](docs/public-deployment-spec.md) |

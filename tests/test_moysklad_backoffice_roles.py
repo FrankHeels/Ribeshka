@@ -140,7 +140,8 @@ class MoySkladBackofficeRolesTests(TestCase):
         self.assertTrue(self.owner.groups.filter(name=OWNER_GROUP).exists())
         grants = set(Group.objects.get(name=OWNER_GROUP).permissions.values_list("codename", flat=True))
         self.assertTrue({"view_moyskladsyncstate", "sync_moysklad_catalog", "reconcile_moysklad_prices",
-                         "view_moyskladproduct", "view_moyskladorderlink", "repair_moysklad_order"} <= grants)
+                         "view_moyskladproduct", "view_moyskladorderlink", "repair_moysklad_order",
+                         "delete_order", "delete_inquiry"} <= grants)
         self.assertNotIn("manage_moysklad", grants)
         self.assertFalse({f"view_{model._meta.model_name}" for model in RAW_MODELS
                           if model is not MoySkladSyncState} & grants)
@@ -459,20 +460,24 @@ class MoySkladBackofficeRolesTests(TestCase):
         self.assertEqual(response.context["export_count"], 0)
         self.assertNotContains(response, "temporary_api_error")
 
-    def test_account_api_state_overrides_legacy_state_and_missing_api_state_uses_fallback(self):
-        state = self.healthy_state(access_error_code="access_denied", export_paused=True,
-                                   api_paused_until=NOW + timedelta(minutes=5))
+    def test_account_api_state_is_authoritative_and_missing_row_uses_safe_defaults(self):
+        self.healthy_state()
+        api = MoySkladApiState.objects.create(
+            account_id=ACCOUNT_ID, access_error_code="access_denied", export_paused=True,
+            api_paused_until=NOW + timedelta(minutes=5),
+        )
         login_verified_admin(self.client, self.technical)
         response = self.client.get(self.technical_url())
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["api"]["access_error_code"], "access_denied")
         self.assertTrue(response.context["api"]["export_paused"])
-        self.assertEqual(response.context["api"]["paused_until"], state.api_paused_until)
-        MoySkladApiState.objects.create(account_id=ACCOUNT_ID)
+        self.assertEqual(response.context["api"]["paused_until"], api.api_paused_until)
+        api.delete()
         response = self.client.get(self.technical_url())
         self.assertEqual(response.context["api"]["access_error_code"], "")
         self.assertFalse(response.context["api"]["export_paused"])
         self.assertIsNone(response.context["api"]["paused_until"])
+        self.assertFalse(MoySkladApiState.objects.filter(account_id=ACCOUNT_ID).exists())
 
     def test_technical_diagnostics_have_local_explanations_and_stream_boundaries(self):
         state = self.healthy_state(webhook_id=uuid.uuid4(), webhook_received_at=NOW - timedelta(minutes=2),

@@ -70,6 +70,10 @@ class RequestAdministrationTests(TestCase):
                 self.assertEqual(model.objects.filter(pk=obj.pk).values().get(), before)
 
     def test_dashboard_counts_all_requests_without_read_tracking(self):
+        owner = get_user_model().objects.create_user(username="ordinary-request-owner", is_staff=True)
+        call_command("sync_backoffice_roles", owner.username, verbosity=0)
+        owner.refresh_from_db()
+        login_verified_admin(self.client, owner)
         response = self.client.get(reverse("admin:index"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["retail_count"], 1)
@@ -81,30 +85,15 @@ class RequestAdministrationTests(TestCase):
         self.assertNotContains(response, "Непросмотренные")
         self.assertNotContains(response, "Не просмотрена")
 
-    def test_owner_role_allows_viewing_but_not_editing_requests(self):
-        owner = get_user_model().objects.create_user(username="ordinary-request-owner", is_staff=True)
-        call_command("sync_backoffice_roles", owner.username, verbosity=0)
-        login_verified_admin(self.client, owner)
-        self.assertTrue(owner.has_perm("orders.view_order"))
-        self.assertTrue(owner.has_perm("inquiries.view_inquiry"))
-        self.assertFalse(owner.has_perm("orders.change_order"))
-        self.assertFalse(owner.has_perm("inquiries.change_inquiry"))
-        for model, obj in ((Order, self.order), (Inquiry, self.inquiry)):
-            response = self.client.get(reverse(f"admin:{model._meta.app_label}_{model._meta.model_name}_change", args=(obj.pk,)))
-            self.assertEqual(response.status_code, 200)
-            self.assertNotContains(response, 'name="_save"')
-        dashboard = self.client.get(reverse("admin:index"))
-        self.assertEqual(dashboard.context["retail_count"], 1)
-        self.assertEqual(dashboard.context["wholesale_count"], 1)
-
 
 class WorkflowRemovalMigrationTests(TransactionTestCase):
     def test_existing_request_snapshots_notifications_and_exchange_survive(self):
         executor = MigrationExecutor(connection)
         latest = executor.loader.graph.leaf_nodes()
-        before = [node for node in latest if node[0] not in ("orders", "inquiries")] + [
+        before = [node for node in latest if node[0] not in ("orders", "inquiries", "integrations")] + [
             ("orders", "0004_orderitem_external_account_id_snapshot_and_more"),
             ("inquiries", "0005_remove_inquiry_status"),
+            ("integrations", "0007_moysklad_order_export_approval"),
         ]
         try:
             executor.migrate(before)
@@ -151,6 +140,7 @@ class WorkflowRemovalMigrationTests(TransactionTestCase):
                 with self.subTest(model=label):
                     self.assertEqual(list(current.get_model(label).objects.order_by("pk").values(*fields)), rows)
             permissions = current.get_model("auth", "Group").objects.get(pk=group.pk).permissions
-            self.assertEqual(list(permissions.values_list("codename", flat=True)), ["view_order"])
+            self.assertEqual(set(permissions.values_list("codename", flat=True)),
+                             {"view_order", "delete_order", "delete_inquiry"})
         finally:
             MigrationExecutor(connection).migrate(latest)

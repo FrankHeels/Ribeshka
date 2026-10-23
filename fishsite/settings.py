@@ -296,7 +296,7 @@ UNFOLD = {
     "SHOW_VIEW_ON_SITE": False,
     # Resolve static URLs after app loading. ``STATIC_URL`` is relative in
     # local installs, so make admin assets root-relative for /admin/ routes.
-    "STYLES": [lambda request: static("admin/backoffice.css") + "?v=2026-10-18-4"],
+    "STYLES": [lambda request: static("admin/backoffice.css") + "?v=2026-10-21-1"],
     "SCRIPTS": [lambda request: static("admin/theme-default.js") + "?v=2026-10-12-1"],
     "COLORS": {
         "primary": {

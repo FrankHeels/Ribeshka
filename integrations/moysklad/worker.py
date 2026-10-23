@@ -22,9 +22,11 @@ from .contracts import LeaseLost, MoySkladError, safe_error_code
 from .controls import effective_config, locked_state
 from .incidents import _close_observed_incident, open_incident
 from .order_export import process_export_task
+from .order_deletion import process_delete_task
 from .price_sync import process_price_reconciliation, process_price_task, start_price_reconciliation
 from .queue import claim_task, complete_task, enqueue_task, ensure_lease, retry_task
-from .status_sync import process_status_task
+from .request_guard import task_request_scope
+from .status_sync import enqueue_status_task, process_status_task
 from .throttling import ApiThrottle
 from .webhooks import process_inbox
 
@@ -77,11 +79,10 @@ class MoySkladWorker:
         ) | (~Q(state_type__in=terminal) & Q(status_checked_at__lte=now - timedelta(minutes=5)))
         links = MoySkladOrderLink.objects.filter(
             due, account_id=config.account_id, environment=config.environment, external_id__isnull=False,
+            deletion_requested_at__isnull=True,
         ).exclude(tasks__kind="status_sync", tasks__status__in=("pending", "processing"))
         for link in links.order_by("status_checked_at", "pk")[:100]:
-            enqueue_task(kind="status_sync", dedupe_key=f"status:{link.pk}",
-                         account_id=config.account_id, environment=config.environment,
-                         order_link=link, object_id=str(link.order_id))
+            enqueue_status_task(link.pk)
         state.status_next_at = now + timedelta(seconds=SCAN_SECONDS)
 
     def _schedule(self):
@@ -119,10 +120,10 @@ class MoySkladWorker:
     def _claim(self, state, config):
         now = timezone.now()
         api = MoySkladApiState.objects.filter(account_id=config.account_id).first()
-        access_paused = (api.access_error_code if api else state.access_error_code)
-        export_paused = (api.export_paused if api else state.export_paused)
-        rate_until = api.api_paused_until if api else state.api_paused_until
-        busy_until = api.api_lease_expires_at if api else state.api_lease_expires_at
+        access_paused = api.access_error_code if api else ""
+        export_paused = api.export_paused if api else False
+        rate_until = api.api_paused_until if api else None
+        busy_until = api.api_lease_expires_at if api else None
         available = not ((rate_until and rate_until > now) or (busy_until and busy_until > now))
         network = available and not access_paused
 
@@ -136,6 +137,8 @@ class MoySkladWorker:
             if task:
                 return task
         short = []
+        if network:
+            short.append("delete_order")
         if network and config.export_enabled and not export_paused:
             short.append("export_order")
         if network and config.prices_enabled:
@@ -213,16 +216,17 @@ class MoySkladWorker:
         return effective_config(self.config, state).prices_enabled
 
     def _dispatch(self, task):
-        if task.kind == "webhook":
-            process_inbox(task)
-        elif task.kind == "price_reconciliation":
-            process_price_reconciliation(task)
-        elif task.kind == "check_access":
-            self._check_access(task)
-        else:
-            handlers = {"price": process_price_task, "export_order": process_export_task,
-                        "catalog_sync": process_catalog_task, "status_sync": process_status_task}
-            handlers[task.kind](task, client=self.client)
+        with task_request_scope(task):
+            if task.kind == "webhook":
+                process_inbox(task)
+            elif task.kind == "price_reconciliation":
+                process_price_reconciliation(task)
+            elif task.kind == "check_access":
+                self._check_access(task)
+            else:
+                handlers = {"price": process_price_task, "export_order": process_export_task, "delete_order": process_delete_task,
+                            "catalog_sync": process_catalog_task, "status_sync": process_status_task}
+                handlers[task.kind](task, client=self.client)
 
     def _failure(self, task, error):
         if not ensure_lease(task):

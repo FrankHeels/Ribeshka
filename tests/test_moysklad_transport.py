@@ -9,6 +9,7 @@
 
 import asyncio
 import json
+import uuid
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone as datetime_timezone
 from unittest.mock import patch
@@ -21,6 +22,76 @@ from tests.moysklad_helpers import API_BASE, moysklad_config
 
 
 class MoySkladTransportTests(SimpleTestCase):
+    # Одиночный DELETE customerorder не содержит даже JSON null; официальный
+    # успешный ответ 200 с пустым телом считается выполненным удалением.
+    def test_delete_exact_customerorder_sends_no_body_and_accepts_empty_200(self):
+        from integrations.moysklad.client import MoySkladClient
+
+        seen = []
+        identifier = uuid.uuid4()
+
+        def respond(request):
+            seen.append(request)
+            return httpx.Response(200, content=b"", request=request)
+
+        with MoySkladClient(config=moysklad_config(), transport=httpx.MockTransport(respond)) as client:
+            self.assertIsNone(client.delete(f"entity/customerorder/{identifier}"))
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0].method, "DELETE")
+        self.assertEqual(str(seen[0].url), f"{API_BASE}entity/customerorder/{identifier}")
+        self.assertEqual(seen[0].content, b"")
+        self.assertEqual(seen[0].headers["Authorization"], "Bearer synthetic-test-token")
+
+    # Право удалить конкретный заказ не открывает массовое удаление, webhooks,
+    # произвольные host, query или другие сущности даже в режиме управления webhook.
+    def test_delete_rejects_any_resource_except_exact_customerorder_uuid(self):
+        from integrations.moysklad.client import MoySkladClient
+        from integrations.moysklad.contracts import MoySkladError
+
+        identifier = uuid.uuid4()
+        calls = []
+        paths = (
+            "entity/customerorder", "entity/customerorder/delete", "entity/customerorder/not-a-uuid",
+            f"entity/customerorder/{identifier}/positions", f"entity/customerorder/{identifier}?force=true",
+            f"entity/product/{identifier}", f"entity/webhook/{identifier}",
+            f"https://attacker.example/entity/customerorder/{identifier}",
+            f"{API_BASE}entity/customerorder/{identifier}",
+            f"entity/customerorder/../customerorder/{identifier}",
+        )
+        with MoySkladClient(config=moysklad_config(), webhook_management=True,
+                            transport=httpx.MockTransport(lambda request: calls.append(request))) as client:
+            for path in paths:
+                with self.subTest(path=path), self.assertRaises(MoySkladError):
+                    client.delete(path)
+        self.assertEqual(calls, [])
+
+    # Диагностический клиент остаётся только читающим и не отправляет DELETE.
+    def test_readonly_probe_rejects_delete_before_transport(self):
+        from integrations.moysklad.client import MoySkladClient
+        from integrations.moysklad.contracts import MoySkladError
+
+        calls = []
+        with MoySkladClient(config=moysklad_config(), readonly_probe=True,
+                            transport=httpx.MockTransport(lambda request: calls.append(request))) as client:
+            with self.assertRaises(MoySkladError) as caught:
+                client.delete(f"entity/customerorder/{uuid.uuid4()}")
+        self.assertEqual(caught.exception.code, "readonly_probe")
+        self.assertEqual(calls, [])
+
+    # Повторный 404 сохраняется как классифицированный not_found: решение
+    # о локальной очистке принимает сервис удаления, а не общий транспорт.
+    def test_delete_404_preserves_not_found_classification_for_service(self):
+        from integrations.moysklad.client import MoySkladClient
+        from integrations.moysklad.contracts import MoySkladError
+
+        with MoySkladClient(config=moysklad_config(), transport=httpx.MockTransport(
+            lambda request: httpx.Response(404, content=b"", request=request),
+        )) as client:
+            with self.assertRaises(MoySkladError) as caught:
+                client.delete(f"entity/customerorder/{uuid.uuid4()}")
+        self.assertEqual(caught.exception.code, "not_found")
+        self.assertEqual(caught.exception.status_code, 404)
+
     # Один фиксированный API host, Bearer, gzip и ожидаемые ограничения
     # транспорта применяются ко всем методам клиента.
     def test_get_uses_fixed_api_host_bearer_and_gzip(self):

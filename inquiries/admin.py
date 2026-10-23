@@ -2,12 +2,14 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin
+from fishsite.backoffice.request_views import RequestDeletionAdminMixin
 
 from .models import Inquiry
 
 
 @admin.register(Inquiry)
-class InquiryAdmin(ModelAdmin):
+class InquiryAdmin(RequestDeletionAdminMixin, ModelAdmin):
+    change_form_template = "admin/inquiries/inquiry/change_form.html"
     list_display = ("inquiry_number", "contact_name", "company", "phone", "created_at")
     list_filter = ("created_at",)
     search_fields = ("inquiry_number", "contact_name", "company", "phone", "email")
@@ -38,8 +40,11 @@ class InquiryAdmin(ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-    def has_delete_permission(self, request, obj=None):
-        return False
+    @staticmethod
+    def request_deletion_service(object_id, *, actor):
+        from .services import delete_inquiry
+
+        return delete_inquiry(object_id, actor=actor)
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("privacy_consent_revision")

@@ -20,7 +20,7 @@ def enqueue_task(*, kind, dedupe_key, account_id, environment, **kwargs):
         raise ValueError("Unknown MoySklad task kind.")
     identity = {"account_id": account_id, "environment": environment, "kind": kind, "dedupe_key": dedupe_key}
     query = MoySkladTask.objects.filter(**identity)
-    if kind not in (MoySkladTask.Kind.EXPORT_ORDER, MoySkladTask.Kind.WEBHOOK):
+    if kind not in (MoySkladTask.Kind.EXPORT_ORDER, MoySkladTask.Kind.DELETE_ORDER, MoySkladTask.Kind.WEBHOOK):
         query = query.filter(status__in=(MoySkladTask.Status.PENDING, MoySkladTask.Status.PROCESSING))
     # get_or_create retries its lookup after a concurrent unique conflict.
     task, _created = query.get_or_create(defaults=kwargs, **identity)

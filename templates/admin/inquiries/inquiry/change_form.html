@@ -1,0 +1,12 @@
+{% extends "admin/change_form.html" %}
+{% load unfold %}
+
+{% block form_after %}
+  {{ block.super }}
+  {% if original and has_delete_permission %}
+    <section class="backoffice-request-actions">
+      {% url 'admin:inquiries_inquiry_delete' original.pk as delete_url %}
+      {% component "unfold/components/button.html" with href=delete_url variant="danger" size="lg" %}Удалить заявку{% endcomponent %}
+    </section>
+  {% endif %}
+{% endblock %}

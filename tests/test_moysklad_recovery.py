@@ -60,7 +60,7 @@ class MoySkladRecoveryTests(TestCase):
 
     def make_order_link(self, *, external_id=None):
         from integrations.moysklad.catalog_sync import link_product, upsert_product
-        from integrations.moysklad.order_export import enqueue_order_export
+        from integrations.moysklad.order_export import request_order_export
 
         external_id = external_id or uuid.uuid4()
         product = Product.objects.create(
@@ -70,7 +70,7 @@ class MoySkladRecoveryTests(TestCase):
         source = upsert_product(product_payload(external_id, price="125.50"))
         link_product(product_id=product.pk, external_product_id=source.external_id, actor=self.owner)
         order = self.make_order(product, external_id)
-        return enqueue_order_export(order), product
+        return request_order_export(order.pk, actor=self.owner), product
 
     def make_order(self, product, external_id):
         from orders.models import Order, OrderItem
@@ -626,7 +626,7 @@ class MoySkladInboxRecoveryTests(TransactionTestCase):
 class MoySkladRetailAcceptanceRaceTests(TransactionTestCase):
     reset_sequences = True
 
-    def test_concurrent_identical_retail_posts_accept_exactly_one_order_and_export(self):
+    def test_concurrent_identical_retail_posts_accept_one_local_order_without_export(self):
         """Barrier-start two independent PostgreSQL-backed sessions after export starts."""
         from content.consent_revisions import get_current_consent_revision
         from integrations.moysklad.catalog_sync import link_product, upsert_product
@@ -687,5 +687,5 @@ class MoySkladRetailAcceptanceRaceTests(TransactionTestCase):
         order = Order.objects.get(email="race@example.test")
         self.assertEqual(Order.objects.filter(email="race@example.test").count(), 1)
         self.assertEqual(NotificationOutbox.objects.filter(order=order).count(), 1)
-        self.assertEqual(MoySkladOrderLink.objects.filter(order=order).count(), 1)
-        self.assertEqual(MoySkladTask.objects.filter(kind="export_order", order_link__order=order).count(), 1)
+        self.assertFalse(MoySkladOrderLink.objects.filter(order=order).exists())
+        self.assertFalse(MoySkladTask.objects.filter(kind="export_order", order_link__order=order).exists())

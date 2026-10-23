@@ -96,28 +96,26 @@ class SessionCartTests(TestCase):
         self.assertContains(cart, "500,00 ₽")
         self.assertContains(cart, 'aria-label="Корзина, товаров: 1"')
 
-    # После добавления 3 кг страница товара всё равно предлагает добавить 1 кг,
-    # сохраняет подписи «Добавить» и не показывает действие обновления корзины.
+    # В пустой корзине и после добавления 3 кг карточка предлагает целый 1 кг
+    # в диапазоне 1–99999, сохраняя кнопку добавления и подписи формы.
     def test_product_page_starts_at_one_and_keeps_add_copy_when_item_is_in_cart(self):
         client = Client()
-        response = self.add(client, weight="3")
-        self.assertEqual(response.status_code, 302)
+        for state in ("empty", "item_in_cart"):
+            with self.subTest(state=state):
+                if state == "item_in_cart":
+                    response = self.add(client, weight="3")
+                    self.assertEqual(response.status_code, 302)
 
-        page = client.get(reverse("catalog:product", args=(self.product.slug,)))
-        self.assertContains(page, 'id="product-weight"')
-        self.assertContains(page, 'value="1"')
-        self.assertContains(page, "<legend>Добавить в корзину</legend>", html=True)
-        self.assertContains(
-            page,
-            '<button class="button button-primary" type="submit" name="action" value="add">Добавить в корзину</button>',
-            html=True,
-        )
-        self.assertNotContains(page, "Обновить вес в корзине")
-
-    # Пустая корзина не меняет начальный ввод на карточке: это целый 1 кг с диапазоном 1–99999.
-    def test_product_page_defaults_to_one_kilogram(self):
-        page = Client().get(reverse("catalog:product", args=(self.product.slug,)))
-        self.assertContains(page, 'inputmode="numeric" min="1" max="99999" step="1" value="1"')
+                page = client.get(reverse("catalog:product", args=(self.product.slug,)))
+                self.assertContains(page, 'id="product-weight"')
+                self.assertContains(page, 'inputmode="numeric" min="1" max="99999" step="1" value="1"')
+                self.assertContains(page, "<legend>Добавить в корзину</legend>", html=True)
+                self.assertContains(
+                    page,
+                    '<button class="button button-primary" type="submit" name="action" value="add">Добавить в корзину</button>',
+                    html=True,
+                )
+                self.assertNotContains(page, "Обновить вес в корзине")
 
     # Добавление 3 кг в первую сессию не меняет вторую: в ней пустая корзина.
     def test_cart_isolated_between_sessions(self):

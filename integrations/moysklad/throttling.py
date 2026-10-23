@@ -42,11 +42,7 @@ class ApiThrottle:
         state = self._states().select_for_update().get(pk=state.pk)
         workflow, _ = self._workflow_states().get_or_create(
             account_id=self.config.account_id, environment=self.config.environment,
-            defaults={
-                "namespace": self.config.namespace,
-                "access_error_code": state.access_error_code,
-                "export_paused": state.export_paused,
-            },
+            defaults={"namespace": self.config.namespace},
         )
         if workflow.namespace != self.config.namespace:
             raise MoySkladError("target_changed")
@@ -137,7 +133,6 @@ class ApiThrottle:
             state.access_error_code = "access_denied"
             state.access_revision += 1
             state.save(update_fields=("access_error_code", "access_revision"))
-            self._workflow_states().update(access_error_code=state.access_error_code)
 
     def pause_export(self):
         with transaction.atomic():
@@ -145,7 +140,6 @@ class ApiThrottle:
             state.export_paused = True
             state.export_pause_revision += 1
             state.save(update_fields=("export_paused", "export_pause_revision"))
-            self._workflow_states().update(export_paused=True)
 
     def pause_revisions(self):
         """Capture both pause versions, retaining the lock in an outer atomic."""
@@ -161,7 +155,6 @@ class ApiThrottle:
                 return False
             state.access_error_code = ""
             state.save(update_fields=("access_error_code",))
-            self._workflow_states().update(access_error_code="")
             return True
 
     def clear_export_pause(self, *, expected_revision=None):
@@ -172,5 +165,4 @@ class ApiThrottle:
                 return False
             state.export_paused = False
             state.save(update_fields=("export_paused",))
-            self._workflow_states().update(export_paused=False)
             return True

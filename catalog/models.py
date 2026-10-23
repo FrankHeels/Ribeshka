@@ -78,7 +78,7 @@ class Product(models.Model):
     mapping_revision = models.PositiveIntegerField("Редакция связи с МойСклад", default=0, editable=False)
     display_order = models.PositiveIntegerField("Порядок показа", default=0)
     # Legacy stored flag; homepage hits are selected only by HomepageRecommendation.
-    is_popular = models.BooleanField("Хит продаж", default=False, db_index=True)
+    is_popular = models.BooleanField("Хит продаж", default=False)
     seo_title = models.CharField("SEO-заголовок", max_length=180, blank=True)
     seo_description = models.CharField("SEO-описание", max_length=320, blank=True)
     price_revision = models.PositiveIntegerField("Редакция цены", default=0, editable=False)

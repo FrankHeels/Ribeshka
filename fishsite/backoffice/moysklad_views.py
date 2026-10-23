@@ -24,6 +24,7 @@ from integrations.models import (
 from integrations.moysklad import catalog_sync, controls, order_export, price_sync
 from integrations.moysklad.config import get_config
 from integrations.moysklad.contracts import MoySkladError, safe_error_code
+from orders.models import Order
 
 from .moysklad_forms import (
     CandidateCreateForm, ConfirmForm, ExistingOrderForm, OrderRepairForm,
@@ -35,7 +36,7 @@ STREAM_LABELS = {"catalog": "Каталог", "prices": "Автоматичес�
 STREAM_HELP = {
     "catalog": "Вручную обновляет список исходных товаров МойСклад. Не публикует карточки автоматически.",
     "prices": "Обновляет только цены связанных карточек. Не меняет описания, фотографии и остатки.",
-    "export": "Передаёт новые заявки с одобренным согласием после начала регистрации. Исторические заявки автоматически не отправляются.",
+    "export": "Передаёт только заявки, явно отправленные владельцем после связи с покупателем. Одобрение согласия и запуск обмена обязательны.",
     "statuses": "Читает учётные статусы заказов МойСклад. Не меняет остатки и не гарантирует наличие товара.",
 }
 CANDIDATE_ERROR_LABELS = {
@@ -215,13 +216,25 @@ def _moysklad_context(*, technical=False):
             "identifier": state.export_consent_revision.revision_id,
             "registered_at": state.export_consent_revision.registered_at,
         } if state and state.export_consent_revision_id else None),
-        "api": {"access_error_code": safe_error_code((api or state).access_error_code) if (api or state) and (api or state).access_error_code else "",
-                "paused_until": (api or state).api_paused_until if (api or state) else None, "export_paused": (api or state).export_paused if (api or state) else False},
+        "api": {"access_error_code": safe_error_code(api.access_error_code) if api and api.access_error_code else "",
+                "paused_until": api.api_paused_until if api else None, "export_paused": api.export_paused if api else False},
         "streams": [{"key": stream, "label": label, "help": STREAM_HELP[stream], "enabled": getattr(state, f"{stream}_enabled") if state and getattr(state, f"{stream}_enabled") is not None else getattr(config, f"{stream}_enabled")} for stream, label in STREAM_LABELS.items()],
         "inbox_count": inbox.count(), "inbox_oldest": inbox.aggregate(oldest=Min("received_at"))["oldest"],
         "price_count": price_tasks.count(), "price_oldest": price_tasks.aggregate(oldest=Min("created_at"))["oldest"],
         "export_count": exports.count(), "export_oldest": exports.aggregate(oldest=Min("created_at"))["oldest"],
-        "export_review_count": tasks.filter(kind="export_order", status="manual_review").count(),
+        "export_review_count": tasks.filter(kind="export_order", status="manual_review").exclude(last_error_code="owner_approval_required").count(),
+        "deletion_count": tasks.filter(kind="delete_order", status__in=("pending", "processing")).count(),
+        "deletion_review_count": tasks.filter(kind="delete_order", status__in=("failed", "manual_review")).count(),
+        "export_approval_count": Order.objects.filter(
+            Q(moysklad_link__isnull=True) | Q(
+                moysklad_link__account_id=config.account_id,
+                moysklad_link__environment=config.environment,
+                moysklad_link__config_snapshot__namespace=str(config.namespace),
+                moysklad_link__approved_at__isnull=True,
+                moysklad_link__external_id__isnull=True,
+                moysklad_link__deletion_requested_at__isnull=True,
+            ),
+        ).count(),
         "candidate_count": sources.filter(product__isnull=True).count(),
         "pending_price_count": sources.filter(price_pending_since__isnull=False).count(),
         "pending_price_oldest": sources.aggregate(oldest=Min("price_pending_since"))["oldest"],
@@ -381,6 +394,22 @@ def moysklad_unblock(request, product_id):
     return local_response(request, "admin/moysklad/unblock.html", {"title": "Снять блокировку товара", "product": product, "form": form}, status=400 if request.method == "POST" and form.errors else 200)
 
 
+@require_POST
+@csrf_protect
+@owner_permission("integrations.repair_moysklad_order")
+def moysklad_order_export(request, order_id):
+    if not request.user.has_perm("orders.view_order"):
+        raise PermissionDenied
+    order = get_object_or_404(Order, pk=order_id)
+    try:
+        order_export.request_order_export(order.pk, actor=request.user)
+    except (ImproperlyConfigured, MoySkladError, ValidationError, ObjectDoesNotExist, IntegrityError) as error:
+        messages.error(request, action_error(error))
+    else:
+        messages.success(request, "Решение сохранено. Передача выполняется в фоне; результат появится в карточке заявки.")
+    return redirect("admin:orders_order_change", order.pk)
+
+
 @require_http_methods(["GET", "POST"])
 @csrf_protect
 @owner_permission("integrations.repair_moysklad_order")
@@ -393,6 +422,9 @@ def moysklad_order_action(request, link_id, operation):
         messages.error(request, action_error(error))
         return redirect("admin:moysklad_status")
     link = get_object_or_404(MoySkladOrderLink.objects.select_related("order"), pk=link_id, account_id=config.account_id, environment=config.environment)
+    if link.deletion_requested_at is not None:
+        messages.error(request, "Заявка ожидает удаления. Передача и исправление связей недоступны.")
+        return redirect("admin:orders_order_change", link.order_id)
     data = request.POST if request.method == "POST" else None
     form = ExistingOrderForm(data) if operation == "link" else OrderRepairForm(data)
     positions = None

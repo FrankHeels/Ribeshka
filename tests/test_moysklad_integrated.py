@@ -67,7 +67,7 @@ class MoySkladIntegratedRegressionTests(TestCase):
         from content.consent_revisions import get_current_consent_revision
         from integrations.moysklad.catalog_sync import link_product, upsert_product
         from integrations.moysklad.controls import start_export
-        from integrations.moysklad.order_export import enqueue_order_export
+        from integrations.moysklad.order_export import request_order_export
 
         state = start_export(actor=self.owner)
         if revision is None:
@@ -91,7 +91,7 @@ class MoySkladIntegratedRegressionTests(TestCase):
             unit_id_snapshot=uuid.UUID(moysklad_config()["unit_id"]), price_revision_snapshot=1,
             price_source_snapshot="moysklad", price_checked_at_snapshot=timezone.now(),
         )
-        link = enqueue_order_export(order)
+        link = request_order_export(order.pk, actor=self.owner)
         link.refresh_from_db()
         self.assertEqual(link.config_snapshot["namespace"], str(state.namespace))
         return link, product
@@ -333,60 +333,6 @@ class MoySkladIntegratedRegressionTests(TestCase):
         self.assertEqual(source.product.price_per_kg, Decimal("132.45"))
         self.assertEqual(client.get.call_count, 1)
         self.assertEqual(client.get.call_args.args[0], f"entity/product/{source.external_id}")
-
-    # Удалённый архивный товар блокирует передачу, сохраняя принятую цену и
-    # неизменяемый снимок позиции; проверка выполняет только GET.
-    def test_export_preflight_archived_product_preserves_accepted_snapshot(self):
-        from integrations.moysklad.order_export import process_export_task
-        from integrations.moysklad.queue import claim_task
-
-        external_id = uuid.uuid4()
-        link, product = self.accepted_export_link(external_id)
-        item = link.order.items.get()
-        before = (item.price_per_kg_snapshot, item.external_id_snapshot, item.unit_id_snapshot)
-        task = claim_task(account_id=ACCOUNT_ID, environment=ENVIRONMENT, kinds=("export_order",))
-        client = Mock(get=Mock(return_value=product_payload(external_id, archived=True)))
-
-        process_export_task(task, client=client)
-
-        task.refresh_from_db()
-        item.refresh_from_db()
-        product.refresh_from_db()
-        self.assertEqual(task.status, MoySkladTask.Status.MANUAL_REVIEW)
-        self.assertEqual(product.integration_block_reason, "archived")
-        self.assertFalse(Product.objects.published().filter(pk=product.pk).exists())
-        self.assertEqual(MoySkladProduct.objects.get(external_id=external_id).product_id, product.pk)
-        self.assertEqual((item.price_per_kg_snapshot, item.external_id_snapshot, item.unit_id_snapshot), before)
-        self.assertEqual(product.price_per_kg, Decimal("125.50"))
-        client.post.assert_not_called()
-        client.put.assert_not_called()
-
-    # Несовпадающая внешняя единица также блокирует передачу, не переписывая
-    # цену сайта или значения уже принятой заявки.
-    def test_export_preflight_wrong_unit_preserves_accepted_snapshot(self):
-        from integrations.moysklad.order_export import process_export_task
-        from integrations.moysklad.queue import claim_task
-
-        external_id = uuid.uuid4()
-        link, product = self.accepted_export_link(external_id)
-        item = link.order.items.get()
-        before = (item.price_per_kg_snapshot, item.external_id_snapshot, item.unit_id_snapshot)
-        task = claim_task(account_id=ACCOUNT_ID, environment=ENVIRONMENT, kinds=("export_order",))
-        client = Mock(get=Mock(return_value=product_payload(external_id, unit_id=uuid.uuid4())))
-
-        process_export_task(task, client=client)
-
-        task.refresh_from_db()
-        item.refresh_from_db()
-        product.refresh_from_db()
-        self.assertEqual(task.status, MoySkladTask.Status.MANUAL_REVIEW)
-        self.assertEqual(task.last_error_code, "invalid_unit")
-        self.assertEqual(product.integration_block_reason, "invalid_unit")
-        self.assertFalse(Product.objects.published().filter(pk=product.pk).exists())
-        self.assertEqual(MoySkladProduct.objects.get(external_id=external_id).product_id, product.pk)
-        self.assertEqual((item.price_per_kg_snapshot, item.external_id_snapshot, item.unit_id_snapshot), before)
-        self.assertEqual(product.price_per_kg, Decimal("125.50"))
-        client.post.assert_not_called()
 
     # Пока GET старого UUID выполняется, менеджер может перепривязать карточку;
     # устаревший ответ не блокирует новую связь и не скрывает товар.

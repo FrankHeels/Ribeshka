@@ -90,8 +90,6 @@ def persist_retail_order(order_data, item_data, *, using="default"):
     order_items = [OrderItem(order=order, **item) for item in item_data]
     OrderItem.objects.using(using).bulk_create(order_items)
     enqueue_notification(order=order, using=using)
-    from integrations.moysklad.order_export import enqueue_order_export
-    enqueue_order_export(order, using=using)
     return order
 
 

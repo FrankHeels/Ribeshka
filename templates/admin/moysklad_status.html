@@ -45,8 +45,11 @@
       <div class="moysklad-metrics">
         <div class="moysklad-metric"><span>В очереди и обработке</span><strong>{{ export_count }}</strong></div>
         <div class="moysklad-metric"><span>Требуют разбора</span><strong>{{ export_review_count }}</strong></div>
+        <div class="moysklad-metric"><span>Ожидают решения владельца</span><strong>{{ export_approval_count }}</strong></div>
+        <div class="moysklad-metric"><span>Ожидают удаления</span><strong>{{ deletion_count }}</strong></div>
+        <div class="moysklad-metric"><span>Удаление требует разбора</span><strong>{{ deletion_review_count }}</strong></div>
       </div>
-      <p class="backoffice-help moysklad-description">Передаются новые заявки после запуска и одобрения согласия техническим администратором. Исторические заявки автоматически не отправляются.</p>
+      <p class="backoffice-help moysklad-description">Сначала свяжитесь с покупателем, затем нажмите «Отправить в МойСклад» в карточке розничной заявки. Передаются только явно выбранные заявки после запуска обмена и одобрения согласия техническим администратором.</p>
       <div class="backoffice-shortcuts">
         {% if perms.integrations.view_moyskladorderlink %}<a class="button button-secondary" href="{% url 'admin:integrations_moyskladorderlink_changelist' %}">Передачи заявок и исправления</a>{% endif %}
         {% if perms.orders.view_order %}<a class="button button-secondary" href="{% url 'admin:orders_order_changelist' %}">Розничные заявки</a>{% endif %}

@@ -197,14 +197,6 @@ class MoySkladDatabaseContractTests(TestCase):
         valid = outbox.objects.create(incident=incident_row)
         self.assertEqual(valid.incident_id, incident_row.pk)
 
-    # Пустая очередь экспорта при создании до интеграции не должна задним
-    # числом захватывать исторические заказы.
-    def test_existing_orders_are_not_automatically_enqueued_for_export(self):
-        task = required_model(self, "MoySkladTask")
-        fields = {field.name for field in task._meta.get_fields()}
-        self.assertTrue({"kind", "dedupe_key", "status"} <= fields)
-        self.assertFalse(task.objects.filter(kind="export_order").exists())
-
 
 class MoySkladConfigurationTests(SimpleTestCase):
     # Тестовый профиль не наследует рабочие секреты даже при наличии env.

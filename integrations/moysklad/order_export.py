@@ -11,12 +11,13 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from integrations.models import MoySkladOrderLink, MoySkladSyncState, MoySkladTask
+from integrations.models import MoySkladApiState, MoySkladOrderLink, MoySkladSyncState, MoySkladTask
 from .config import get_config
 from .contracts import LeaseLost, MoySkladError
 from .incidents import open_incident
 from .mapping import API_BASE, reference_id, uuid_value
 from .queue import complete_task, enqueue_task, ensure_lease, retry_task
+from .request_guard import task_request_scope
 from .throttling import ApiThrottle
 
 _SNAPSHOT_FIELDS = (
@@ -32,7 +33,7 @@ def _config_snapshot(config, namespace):
 
 
 def enqueue_order_export(order, *, using="default", historical=False, actor=None, reason=""):
-    """Register after local acceptance, even while network delivery is paused."""
+    """Register durable identity without approving a new external document."""
     existing = MoySkladOrderLink.objects.using(using).filter(order=order).first()
     if existing is not None:
         return existing
@@ -70,6 +71,60 @@ def enqueue_order_export(order, *, using="default", historical=False, actor=None
             link.save(using=using, update_fields=("audit_log", "updated_at"))
         enqueue_task(kind="export_order", dedupe_key=f"order:{order.pk}", account_id=link.account_id,
                      environment=link.environment, order_link=link, object_id=str(order.pk))
+        return link
+
+
+def request_order_export(order_id, *, actor):
+    """Approve one accepted retail snapshot and queue its background delivery."""
+    from orders.models import Order
+
+    _require_repair(actor)
+    if not actor.has_perm("orders.view_order"):
+        raise PermissionDenied
+    config = get_config()
+    if not all(getattr(config, name) for name in _SNAPSHOT_FIELDS):
+        raise ValidationError("Сначала настройте передачу заявок в МойСклад.")
+    with transaction.atomic():
+        # The Order row serializes the first decision before a link exists.
+        order = Order.objects.select_for_update().get(pk=order_id)
+        state = MoySkladSyncState.objects.select_for_update().filter(
+            account_id=config.account_id, environment=config.environment,
+        ).first()
+        if state is None or state.export_started_at is None:
+            raise ValidationError("Передача заявок ещё не запущена техническим администратором.")
+        if state.namespace != config.namespace:
+            raise ValidationError("Конфигурация обмена изменилась. Нужна проверка технического администратора.")
+        link = MoySkladOrderLink.objects.select_for_update().filter(order=order).first()
+        if link is not None:
+            if link.deletion_requested_at is not None:
+                raise ValidationError("Заявка ожидает удаления. Передача недоступна.")
+            if (link.account_id != config.account_id or link.environment != config.environment
+                    or link.config_snapshot.get("namespace") != str(config.namespace)):
+                raise ValidationError("Заявка относится к другой конфигурации обмена.")
+            # A second click cannot restart work or retroactively approve a
+            # document already sent before manual approval was introduced.
+            if link.approved_at is not None or link.external_id is not None:
+                return link
+        else:
+            historical = order.created_at < state.export_started_at
+            link = enqueue_order_export(
+                order, historical=historical, actor=actor,
+                reason="Владелец явно выбрал отправку этой исторической заявки." if historical else "",
+            )
+        task = enqueue_task(
+            kind="export_order", dedupe_key=f"order:{order.pk}", account_id=link.account_id,
+            environment=link.environment, order_link=link, object_id=str(order.pk),
+        )
+        task = MoySkladTask.objects.select_for_update().get(pk=task.pk)
+        if task.status == "processing" and task.lease_expires_at > timezone.now():
+            raise ValidationError("Передача уже выполняется. Дождитесь результата проверки.")
+        now = timezone.now()
+        link.approved_at, link.approved_by = now, actor
+        link.audit_log = [*link.audit_log, {"action": "approve_export", "actor": actor.pk, "at": now.isoformat()}]
+        if link.last_error_code == "owner_approval_required":
+            link.last_error_code = ""
+        link.save(update_fields=("approved_at", "approved_by", "audit_log", "last_error_code", "updated_at"))
+        _reset_export_task(link)
         return link
 
 
@@ -142,10 +197,12 @@ def _prepare_payload(link):
 
 
 def _owned_link(task):
-    """Lock the link then the task; every result mutation rechecks ownership."""
-    link = MoySkladOrderLink.objects.select_for_update().select_related("order").get(pk=task.order_link_id)
-    current = MoySkladTask.objects.select_for_update().get(pk=task.pk)
-    if not ensure_lease(task) or current.lease_token != task.lease_token:
+    """Lock only mutable link → task; every mutation rechecks ownership."""
+    link = MoySkladOrderLink.objects.select_for_update(of=("self",)).select_related("order").filter(pk=task.order_link_id).first()
+    current = MoySkladTask.objects.select_for_update().filter(pk=task.pk).first()
+    if link is None or current is None or not ensure_lease(task) or current.lease_token != task.lease_token:
+        raise LeaseLost()
+    if link.deletion_requested_at is not None:
         raise LeaseLost()
     return link
 
@@ -167,7 +224,10 @@ def _stream_allowed(task, config):
     if config.account_id != task.account_id or config.environment != task.environment:
         return False
     state = MoySkladSyncState.objects.filter(account_id=task.account_id, environment=task.environment).first()
-    if state is None or state.namespace != config.namespace or state.access_error_code or state.export_paused:
+    if state is None or state.namespace != config.namespace:
+        return False
+    api = MoySkladApiState.objects.filter(account_id=task.account_id).first()
+    if api and (api.access_error_code or api.export_paused):
         return False
     return state.export_enabled if state.export_enabled is not None else config.export_enabled
 
@@ -352,7 +412,8 @@ def _fail(task, error):
                 status="manual_review", lease_token=None, lease_expires_at=None,
                 last_error_code=error.code, completed_at=timezone.now(),
             )
-            open_incident(scope="order_export", code=error.code, object_ids=[link.order.order_number], **target)
+            if error.code != "owner_approval_required":
+                open_incident(scope="order_export", code=error.code, object_ids=[link.order.order_number], **target)
 
 
 def _resolve_export_attempt(task, link, client):
@@ -383,11 +444,21 @@ def _resolve_export_attempt(task, link, client):
 
 def process_export_task(task, *, client):
     """Claimed tasks are processed without HTTP inside database transactions."""
+    with task_request_scope(task):
+        return _process_export_task(task, client=client)
+
+
+def _process_export_task(task, *, client):
     if task is None or task.kind != "export_order" or not task.order_link_id or not ensure_lease(task):
         return
     try:
         config = get_config()
-        link = MoySkladOrderLink.objects.select_related("order").get(pk=task.order_link_id)
+        link = MoySkladOrderLink.objects.select_related("order").filter(pk=task.order_link_id).first()
+        if link is None:
+            return
+        if link.deletion_requested_at is not None:
+            complete_task(task)
+            return
         if link.account_id != task.account_id or link.environment != task.environment:
             raise MoySkladError("account_mismatch")
         if config.account_id != link.account_id or config.environment != link.environment:
@@ -399,6 +470,15 @@ def process_export_task(task, *, client):
             raise MoySkladError("namespace_mismatch")
         if link.override_payload.get("resolution_requested") is True:
             return _resolve_export_attempt(task, link, client)
+        if link.approved_at is None and not link.external_id:
+            # Old work may have reached the provider before this approval
+            # requirement existed. Recover that result before holding it.
+            if link.attempted:
+                found = _find_sync(link, task, client)
+                if found is not None:
+                    return _record_document(task, link, found, client)
+            if not link.override_payload.get("existing_external_id"):
+                raise MoySkladError("owner_approval_required")
         if link.config_snapshot.get("consent_approved") is not True:
             # Resolve a prior uncertain send before making any new delivery
             # decision. An ordinary retry/override never approves consent.
@@ -446,6 +526,8 @@ def process_export_task(task, *, client):
                     raise MoySkladError("external_order_already_linked")
             _verify_document(link, document, task, client, require_sync=False)
             return _record_document(task, link, document, client, require_sync=False)
+        if link.approved_at is None:
+            raise MoySkladError("owner_approval_required")
         link = _save_link(task, attempted=True)
         if not ensure_lease(task):
             return
@@ -474,7 +556,14 @@ def _require_repair(actor):
 
 def _repair_link(link_id, actor, action, reason):
     _require_repair(actor)
+    from orders.models import Order
+
+    order_id = MoySkladOrderLink.objects.filter(pk=link_id).values_list("order_id", flat=True).first()
+    if order_id is not None:
+        Order.objects.select_for_update().get(pk=order_id)
     link = MoySkladOrderLink.objects.select_for_update().get(pk=link_id)
+    if link.deletion_requested_at is not None:
+        raise ValidationError("Заявка ожидает удаления. Исправление передачи недоступно.")
     config = get_config()
     if link.account_id != config.account_id or link.environment != config.environment:
         raise ValidationError("Заявка относится к другой конфигурации обмена.")

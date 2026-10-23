@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}
+{% load unfold %}
+
+{% block content %}
+<section class="backoffice-request-actions">
+  {% if error %}<p class="errornote" role="alert">{{ error }}</p>{% endif %}
+  <p>Удалить заявку {{ original }} вместе с её контактами, позициями и уведомлением на сайте?</p>
+  {% if remote_deletion %}
+    <p>Связанный заказ будет удалён в МойСклад. До подтверждения удаления заявка останется на сайте. Если ответ предыдущей передачи неизвестен, исполнитель сначала проверит её результат.</p>
+  {% else %}
+    <p>Заявка будет удалена на сайте. Отправленное письмо останется в почтовом ящике получателя.</p>
+  {% endif %}
+  {% if deletion_requested %}<p>Удаление уже запрошено. Подтверждение повторит только задачу с ошибкой.</p>{% endif %}
+  <p>Отменить это действие на сайте нельзя.</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="confirm" value="yes">
+    {% component "unfold/components/button.html" with submit=1 variant="danger" size="lg" %}Подтвердить удаление{% endcomponent %}
+  </form>
+  <p><a href="{{ change_url }}">Вернуться к заявке</a></p>
+</section>
+{% endblock %}

@@ -33,8 +33,8 @@
           {% if perms.integrations.manage_moysklad %}<form method="post" action="{% url 'admin:moysklad_action' 'stream' %}" class="backoffice-shortcuts">{% csrf_token %}<input type="hidden" name="stream" value="{{ stream.key }}"><input type="hidden" name="enabled" value="{{ stream.enabled|yesno:'no,yes' }}"><button class="button button-secondary" type="submit">{% if stream.enabled %}Выключить{% else %}Включить{% endif %}: {{ stream.label }}</button></form>{% endif %}
         </div>{% endfor %}
       </div>
-      <p>Начало регистрации новых заявок: {{ state.export_started_at|date:"d.m.Y H:i:s"|default:"Ещё не запущена" }}.</p>
-      <p class="backoffice-help">Нижняя граница регистрации: заявки до этой даты автоматически не включаются в передачу. Повторное одобрение согласия сохраняет исходную дату.</p>
+      <p>Исходная дата запуска передачи: {{ state.export_started_at|date:"d.m.Y H:i:s"|default:"Ещё не запущена" }}.</p>
+      <p class="backoffice-help">Технический запуск подготавливает обмен. Исторические заявки автоматически не отправляются. Каждую розничную заявку владелец отправляет отдельной кнопкой после связи с покупателем; более старую заявку также можно выбрать явно. Повторное одобрение согласия сохраняет исходную дату.</p>
       <dl class="moysklad-facts">
         <dt>Одобренная редакция согласия</dt><dd>{% if approved_consent %}{{ approved_consent.identifier }}{% else %}Ещё не одобрена{% endif %}<p class="backoffice-help">Хеш архивного текста, одобренного для новых заявок. При изменении исходного текста требуется отдельное одобрение новой редакции.</p></dd>
         <dt>Дата регистрации редакции</dt><dd>{{ approved_consent.registered_at|date:"d.m.Y H:i:s"|default:"—" }}<p class="backoffice-help">Когда этот текст впервые сохранён в архиве; это не дата начала экспорта.</p></dd>
@@ -42,17 +42,17 @@
       {% if perms.integrations.manage_moysklad %}
         <form method="post" action="{% url 'admin:moysklad_action' 'start_export' %}">
           {% csrf_token %}
-          <div class="form-row"><label><input type="checkbox" name="confirm" value="yes" required aria-describedby="export-approval-note"> {% if state.export_started_at %}Одобрить текущую редакцию согласия для новых заявок и включить их передачу. Исходная дата начала регистрации сохранится.{% else %}Одобрить текущую редакцию согласия для передачи новых заявок и начать их регистрацию с текущего момента.{% endif %}</label></div>
+          <div class="form-row"><label><input type="checkbox" name="confirm" value="yes" required aria-describedby="export-approval-note"> Одобрить текущую редакцию согласия и включить обмен для заявок, которые владелец отправит явно. Исходная дата запуска сохранится при повторе.</label></div>
           <div class="backoffice-shortcuts"><button class="button button-primary" type="submit">{% if state.export_started_at %}Одобрить текущую редакцию для новых заявок{% else %}Одобрить согласие и начать передачу{% endif %}</button></div>
         </form>
       {% endif %}
-      <p id="export-approval-note" class="backoffice-help">Одобрение действует для новых заявок. Исторические заявки и ранее не разрешённые передачи автоматически не отправляются; их восстановление требует отдельного разбора.</p>
+      <p id="export-approval-note" class="backoffice-help">Одобрение редакции не заменяет решение владельца по каждой заявке. Старые неподтверждённые задачи ожидают его решения; уже отправленные документы сохраняются.</p>
       <p class="backoffice-help">Включение потока передачи и одобрение редакции согласия — отдельные настройки. Повторное включение продолжает разрешённую очередь.</p>
     </section>
     <section class="backoffice-stat-grid" aria-label="Очереди и каталог">
       <div class="backoffice-stat-card"><span>Необработанные вебхуки</span><strong>{{ inbox_count }}</strong><small>Самый старый: {% if inbox_oldest %}{{ inbox_oldest|timesince }} назад{% else %}—{% endif %}</small></div>
       <div class="backoffice-stat-card"><span>Задачи цен</span><strong>{{ price_count }}</strong><small>Самая старая задача: {% if price_oldest %}{{ price_oldest|timesince }} назад{% else %}—{% endif %}</small><small>Товаров с ожидающей ценой: {{ pending_price_count }}; {% if pending_price_oldest %}старейшее ожидание {{ pending_price_oldest|timesince }}{% else %}ожиданий нет{% endif %}</small><p class="backoffice-help">Число задач и число товаров различаются: повторные события одного товара могут объединяться.</p></div>
-      <div class="backoffice-stat-card"><span>Заявки в очереди и обработке</span><strong>{{ export_count }}</strong><small>Самая старая: {% if export_oldest %}{{ export_oldest|timesince }} назад{% else %}—{% endif %}</small><small>Отдельно требуют разбора: {{ export_review_count }}</small></div>
+      <div class="backoffice-stat-card"><span>Заявки в очереди и обработке</span><strong>{{ export_count }}</strong><small>Самая старая: {% if export_oldest %}{{ export_oldest|timesince }} назад{% else %}—{% endif %}</small><small>Отдельно требуют разбора: {{ export_review_count }}; ожидают решения владельца: {{ export_approval_count }}</small><small>Ожидают удаления: {{ deletion_count }}; удаление требует разбора: {{ deletion_review_count }}</small></div>
       <a class="backoffice-stat-card" href="{% url 'admin:moysklad_candidates' %}"><span>Кандидаты</span><strong>{{ candidate_count }}</strong><small>Блокировок карточек: {{ blocked_count }}</small></a>
     </section>
     <section class="backoffice-card"><h2>Сверка с МойСклад</h2><div class="backoffice-shortcuts">

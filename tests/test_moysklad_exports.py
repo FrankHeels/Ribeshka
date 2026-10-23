@@ -13,7 +13,7 @@ from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
-from django.db import connection
+from django.db import connection, transaction
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -198,10 +198,10 @@ class MoySkladOrderExportTests(TestCase):
         self.assertFalse(MoySkladOrderLink.objects.filter(order=order).exists())
         self.assertFalse(MoySkladTask.objects.filter(kind="export_order").exists())
 
-    # После регистрации экспорта флаг паузы не блокирует атомарную постановку:
-    # принятую заявку, email и задачу можно обработать после возобновления.
+    # Пауза обмена не меняет локальное принятие заявки и письма;
+    # экспортная очередь появится только по отдельному решению владельца.
     @override_settings(MOYSKLAD=MOYSKLAD_TEST_CONFIG | {"export_enabled": False})
-    def test_paused_export_still_registers_task_with_retail_submission(self):
+    def test_paused_export_keeps_retail_submission_local_until_owner_approval(self):
         from integrations.models import MoySkladOrderLink, MoySkladTask
 
         self.map_product()
@@ -209,10 +209,9 @@ class MoySkladOrderExportTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         order = Order.objects.get()
-        link = MoySkladOrderLink.objects.get(order=order)
         self.assertEqual(NotificationOutbox.objects.filter(order=order).count(), 1)
-        task = MoySkladTask.objects.get(kind="export_order", order_link=link)
-        self.assertEqual(task.status, "pending")
+        self.assertFalse(MoySkladOrderLink.objects.filter(order=order).exists())
+        self.assertFalse(MoySkladTask.objects.filter(kind="export_order").exists())
 
     # Оптовое обращение остаётся локальным процессом даже после запуска
     # розничного экспорта и никогда не ставит задачу customerorder.
@@ -234,10 +233,10 @@ class MoySkladOrderExportTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertFalse(MoySkladTask.objects.filter(kind="export_order").exists())
 
-    # Ошибка постановки задачи откатывает всю транзакцию принятия розничной
-    # заявки, включая сам заказ и email-outbox.
-    def test_enqueue_exception_rolls_back_order_email_and_task(self):
-        from integrations.models import MoySkladTask
+    # Публичное принятие заявки и email-outbox не зависит от сервиса экспорта,
+    # который может быть недоступен до отдельного решения владельца.
+    def test_unavailable_export_enqueue_does_not_interrupt_order_and_email_acceptance(self):
+        from integrations.models import MoySkladOrderLink, MoySkladTask
 
         self.map_product()
         self.client.post(
@@ -257,13 +256,15 @@ class MoySkladOrderExportTests(TestCase):
             "consent": "yes",
         }
 
-        with patch("integrations.moysklad.order_export.enqueue_order_export", side_effect=RuntimeError("enqueue failed")):
-            with self.assertRaises(RuntimeError):
-                self.client.post(reverse("orders:cart"), data)
+        with patch("integrations.moysklad.order_export.enqueue_order_export", side_effect=RuntimeError("enqueue failed")) as enqueue:
+            response = self.client.post(reverse("orders:cart"), data)
 
-        self.assertFalse(Order.objects.filter(submission_key=submission["submission_key"]).exists())
-        self.assertFalse(NotificationOutbox.objects.exists())
+        self.assertEqual(response.status_code, 302)
+        order = Order.objects.get(submission_key=submission["submission_key"])
+        self.assertEqual(NotificationOutbox.objects.filter(order=order).count(), 1)
+        self.assertFalse(MoySkladOrderLink.objects.filter(order=order).exists())
         self.assertFalse(MoySkladTask.objects.filter(kind="export_order").exists())
+        enqueue.assert_not_called()
 
     # Смена редакции сопоставления после показа корзины требует нового
     # подтверждения и не создаёт заявку со старой внешней идентичностью.
@@ -306,8 +307,8 @@ class MoySkladOrderExportTests(TestCase):
             comment="\nКомментарий с точной строкой\n" + "текст " * 400,
             address="А" * 255,
         )
-        from integrations.moysklad.order_export import enqueue_order_export
-        link = enqueue_order_export(order)
+        from integrations.moysklad.order_export import request_order_export
+        link = request_order_export(order.pk, actor=self.owner)
         task = claim_task()
         from catalog.pricing import change_product_price
         change_product_price(product_id=self.product.pk, price="9999.99", actor=self.owner)
@@ -344,7 +345,7 @@ class MoySkladOrderExportTests(TestCase):
     # Максимальные допустимые новые контакты и текст комментария сохраняются
     # в описании без изменения строк и остаются внутри лимита API.
     def test_description_preserves_maximum_new_contact_fields_and_comment(self):
-        from integrations.moysklad.order_export import enqueue_order_export, process_export_task
+        from integrations.moysklad.order_export import request_order_export, process_export_task
         from integrations.moysklad.queue import claim_task
 
         email = "a" * 62 + "@" + "b" * 63 + "." + "c" * 63 + "." + "d" * 58 + ".test"
@@ -357,7 +358,7 @@ class MoySkladOrderExportTests(TestCase):
         order = self.accepted_order(
             name=name, phone=phone, email=email, address=address, comment=comment,
         )
-        link = enqueue_order_export(order)
+        link = request_order_export(order.pk, actor=self.owner)
         client = Mock(
             get=Mock(return_value=product_payload(self.external_id, price="1250.50")),
             post=Mock(side_effect=lambda path, json: customer_order_response(
@@ -380,12 +381,12 @@ class MoySkladOrderExportTests(TestCase):
     # требует ручной проверки; исходный комментарий не обрезается для отправки.
     def test_historic_overlong_description_moves_to_manual_review_without_truncation(self):
         from integrations.models import MoySkladTask
-        from integrations.moysklad.order_export import enqueue_order_export, process_export_task
+        from integrations.moysklad.order_export import request_order_export, process_export_task
         from integrations.moysklad.queue import claim_task
 
         comment = "исторический комментарий " * 250
         order = self.accepted_order(comment=comment)
-        link = enqueue_order_export(order)
+        link = request_order_export(order.pk, actor=self.owner)
         task = MoySkladTask.objects.get(kind="export_order", order_link=link)
         client = Mock(get=Mock(return_value=product_payload(self.external_id, price="1250.50")))
 
@@ -403,25 +404,33 @@ class MoySkladOrderExportTests(TestCase):
             self.assertIn(comment, link.prepared_payload["description"])
             self.assertGreater(len(link.prepared_payload["description"]), 4096)
 
-    # Архивный товар и изменившаяся единица не создают документ и не продвигают
-    # сохранённую цену или время её проверки на карточке сайта.
+    # Каждый независимый ответ preflight блокирует публикацию, сохраняя ручной
+    # флаг, сопоставление и всю принятую позицию. Цены и время их проверки
+    # остаются прежними; внешние POST/PUT не выполняются.
     def test_archived_or_wrong_unit_product_stops_before_create_without_price_apply(self):
         from integrations.models import MoySkladProduct, MoySkladTask
-        from integrations.moysklad.order_export import enqueue_order_export, process_export_task
+        from integrations.moysklad.order_export import request_order_export, process_export_task
         from integrations.moysklad.queue import claim_task
 
-        self.map_product()
-        source = MoySkladProduct.objects.get(account_id=ACCOUNT_ID, external_id=self.external_id)
-        initial_checked = (source.last_checked_price, source.price_checked_at)
-        before_site_price = self.product.price_per_kg
-
-        for case, archived, unit_id in (
-            ("archived", True, UNIT_KG_ID),
-            ("unit_changed", False, UNIT_PIECE_ID),
+        for reason, error_code, archived, unit_id in (
+            ("archived", "unavailable_product", True, UNIT_KG_ID),
+            ("invalid_unit", "invalid_unit", False, UNIT_PIECE_ID),
         ):
-            with self.subTest(case=case):
+            with self.subTest(reason=reason), transaction.atomic():
+                self.map_product()
+                source = MoySkladProduct.objects.get(account_id=ACCOUNT_ID, external_id=self.external_id)
+                initial_checked = (source.last_checked_price, source.price_checked_at, source.source_updated_at)
+                site_price = Product.objects.filter(pk=self.product.pk).values(
+                    "price_per_kg", "price_revision", "price_changed_at", "price_changed_by_id", "price_source",
+                )
+                before_site_price = site_price.get()
+                self.product.refresh_from_db()
+                self.assertTrue(self.product.is_published)
+                self.assertTrue(Product.objects.published().filter(pk=self.product.pk).exists())
                 order = self.accepted_order()
-                link = enqueue_order_export(order)
+                item = OrderItem.objects.filter(order=order)
+                accepted_snapshot = item.values().get()
+                link = request_order_export(order.pk, actor=self.owner)
                 task = MoySkladTask.objects.get(kind="export_order", order_link=link)
                 client = Mock(
                     get=Mock(return_value=product_payload(
@@ -429,29 +438,41 @@ class MoySkladOrderExportTests(TestCase):
                     )),
                 )
 
-                process_export_task(
-                    claim_task(account_id=ACCOUNT_ID, environment=ENVIRONMENT, kinds=("export_order",)),
-                    client=client,
-                )
+                claimed = claim_task(account_id=ACCOUNT_ID, environment=ENVIRONMENT, kinds=("export_order",))
+                self.assertEqual(claimed.pk, task.pk)
+                process_export_task(claimed, client=client)
 
                 task.refresh_from_db()
+                link.refresh_from_db()
                 source.refresh_from_db()
                 self.product.refresh_from_db()
                 self.assertEqual(task.status, "manual_review")
+                self.assertEqual(task.last_error_code, error_code)
                 self.assertIsNone(link.external_id)
-                self.assertEqual((source.last_checked_price, source.price_checked_at), initial_checked)
-                self.assertEqual(self.product.price_per_kg, before_site_price)
+                self.assertEqual(self.product.integration_block_reason, reason)
+                self.assertTrue(self.product.is_published)
+                self.assertFalse(Product.objects.published().filter(pk=self.product.pk).exists())
+                self.assertEqual(source.product_id, self.product.pk)
+                self.assertEqual(item.values().get(), accepted_snapshot)
+                self.assertEqual(
+                    (source.last_checked_price, source.price_checked_at, source.source_updated_at), initial_checked,
+                )
+                self.assertEqual(site_price.get(), before_site_price)
+                client.get.assert_called_once_with(f"entity/product/{self.external_id}")
                 client.post.assert_not_called()
+                client.put.assert_not_called()
+                # Откат снимает блокировку и удаляет задачу до следующего ответа.
+                transaction.set_rollback(True)
 
     # Таймаут после отправки требует сначала поискать syncId, включая удалённые
     # документы; найденный документ связывается без второго POST.
     def test_timeout_recovers_existing_sync_id_without_second_create(self):
-        from integrations.moysklad.order_export import enqueue_order_export, process_export_task
+        from integrations.moysklad.order_export import request_order_export, process_export_task
         from integrations.moysklad.queue import claim_task
         from integrations.moysklad.contracts import MoySkladError
 
         order = self.accepted_order()
-        link = enqueue_order_export(order)
+        link = request_order_export(order.pk, actor=self.owner)
         task = claim_task()
         client = Mock()
 
@@ -484,11 +505,11 @@ class MoySkladOrderExportTests(TestCase):
     def test_retry_keeps_frozen_payload_after_same_account_configuration_changes(self):
         from integrations.models import MoySkladTask
         from integrations.moysklad.contracts import MoySkladError
-        from integrations.moysklad.order_export import enqueue_order_export, process_export_task
+        from integrations.moysklad.order_export import request_order_export, process_export_task
         from integrations.moysklad.queue import claim_task
 
         order = self.accepted_order()
-        link = enqueue_order_export(order)
+        link = request_order_export(order.pk, actor=self.owner)
         first_task = claim_task(account_id=ACCOUNT_ID, environment=ENVIRONMENT, kinds=("export_order",))
         client = Mock()
 
@@ -536,10 +557,10 @@ class MoySkladOrderExportTests(TestCase):
     # учётной записи уходит в ручной разбор без сетевых запросов.
     def test_old_task_is_not_sent_to_changed_account_or_environment(self):
         from integrations.models import MoySkladTask
-        from integrations.moysklad.order_export import enqueue_order_export, process_export_task
+        from integrations.moysklad.order_export import request_order_export, process_export_task
         from integrations.moysklad.queue import claim_task
 
-        link = enqueue_order_export(self.accepted_order())
+        link = request_order_export(self.accepted_order().pk, actor=self.owner)
         task = claim_task(account_id=ACCOUNT_ID, environment=ENVIRONMENT, kinds=("export_order",))
         replacement = MOYSKLAD_TEST_CONFIG | {
             "account_id": str(uuid.UUID("40000000-0000-4000-8000-000000000011")),
@@ -561,10 +582,10 @@ class MoySkladOrderExportTests(TestCase):
     # владелец может продолжить её после включения экспорта.
     def test_paused_worker_does_not_send_registered_task(self):
         from integrations.models import MoySkladTask
-        from integrations.moysklad.order_export import enqueue_order_export, process_export_task
+        from integrations.moysklad.order_export import request_order_export, process_export_task
         from integrations.moysklad.queue import claim_task
 
-        link = enqueue_order_export(self.accepted_order())
+        link = request_order_export(self.accepted_order().pk, actor=self.owner)
         task = claim_task(account_id=ACCOUNT_ID, environment=ENVIRONMENT, kinds=("export_order",))
         client = Mock()
 
@@ -580,12 +601,12 @@ class MoySkladOrderExportTests(TestCase):
     # Потерявший lease исполнитель не сохраняет полученный внешний UUID или
     # результат задачи после HTTP-ответа.
     def test_expired_lease_response_cannot_persist_external_document(self):
-        from integrations.moysklad.order_export import enqueue_order_export, process_export_task
+        from integrations.moysklad.order_export import request_order_export, process_export_task
         from integrations.models import MoySkladTask
         from integrations.moysklad.queue import claim_task
 
         order = self.accepted_order()
-        link = enqueue_order_export(order)
+        link = request_order_export(order.pk, actor=self.owner)
         task = claim_task()
         client = Mock()
 
@@ -612,11 +633,11 @@ class MoySkladOrderExportTests(TestCase):
     # переводится в ручной разбор без частичного документа.
     def test_missing_external_snapshot_moves_export_to_manual_review(self):
         from integrations.models import MoySkladTask
-        from integrations.moysklad.order_export import enqueue_order_export, process_export_task
+        from integrations.moysklad.order_export import request_order_export, process_export_task
         from integrations.moysklad.queue import claim_task
 
         order = self.accepted_order(with_external_snapshots=False)
-        link = enqueue_order_export(order)
+        link = request_order_export(order.pk, actor=self.owner)
         task = MoySkladTask.objects.get(kind="export_order", order_link=link)
         client = Mock()
 
@@ -636,7 +657,7 @@ class MoySkladOrderExportTests(TestCase):
     # Чтение внешнего статуса обновляет только статус и время проверки; данные
     # принятой заявки, позиция и редакция согласия остаются исходными.
     def test_status_sync_preserves_accepted_order_and_item(self):
-        from integrations.moysklad.order_export import enqueue_order_export
+        from integrations.moysklad.order_export import request_order_export
         from integrations.moysklad.queue import claim_task, complete_task, enqueue_task
         from integrations.moysklad.contracts import MoySkladError
         from integrations.moysklad.status_sync import process_status_task
@@ -645,7 +666,7 @@ class MoySkladOrderExportTests(TestCase):
         original = (order.name, order.comment, order.privacy_consent_revision_id)
         item = order.items.get()
         original_item = (item.product_name_snapshot, item.price_per_kg_snapshot, item.desired_weight)
-        link = enqueue_order_export(order)
+        link = request_order_export(order.pk, actor=self.owner)
         export_task = claim_task()
         complete_task(export_task)
         link.external_id = uuid.UUID("30000000-0000-4000-8000-000000000002")
@@ -693,12 +714,12 @@ class MoySkladOrderExportTests(TestCase):
     def test_deleted_external_document_opens_incident_without_recreation(self):
         from integrations.models import MoySkladIncident
         from integrations.moysklad.contracts import MoySkladError
-        from integrations.moysklad.order_export import enqueue_order_export
+        from integrations.moysklad.order_export import request_order_export
         from integrations.moysklad.queue import claim_task, complete_task, enqueue_task
         from integrations.moysklad.status_sync import process_status_task
 
         order = self.accepted_order()
-        link = enqueue_order_export(order)
+        link = request_order_export(order.pk, actor=self.owner)
         export_task = claim_task()
         complete_task(export_task)
         link.external_id = uuid.UUID("30000000-0000-4000-8000-000000000004")
@@ -749,7 +770,7 @@ class MoySkladExportHttpBoundaryTests(TransactionTestCase):
     # не добавляет оборачивающую транзакцию вокруг тестового метода.
     def test_export_api_calls_run_outside_database_transactions(self):
         from integrations.models import MoySkladSyncState
-        from integrations.moysklad.order_export import enqueue_order_export, process_export_task
+        from integrations.moysklad.order_export import request_order_export, process_export_task
         from integrations.moysklad.queue import claim_task
 
         category = Category.objects.create(name="Boundary", slug=f"boundary-{uuid.uuid4().hex}")
@@ -777,7 +798,10 @@ class MoySkladExportHttpBoundaryTests(TransactionTestCase):
         state.export_started_at = timezone.now() - timedelta(days=1)
         state.export_consent_revision = revision
         state.save(update_fields=("export_started_at", "export_consent_revision"))
-        link = enqueue_order_export(order)
+        owner = get_user_model().objects.create_superuser(
+            username="boundary-owner", email="boundary@example.test", password="synthetic",
+        )
+        link = request_order_export(order.pk, actor=owner)
         task = claim_task()
         external_id = uuid.UUID("30000000-0000-4000-8000-000000000005")
 

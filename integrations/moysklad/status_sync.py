@@ -6,7 +6,7 @@ from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
 
-from integrations.models import MoySkladOrderLink, MoySkladSyncState
+from integrations.models import MoySkladApiState, MoySkladOrderLink, MoySkladSyncState
 from .config import get_config
 from .contracts import LeaseLost, MoySkladError
 from .mapping import API_BASE, uuid_value
@@ -65,12 +65,18 @@ def process_status_task(task, *, client):
         return
     try:
         config = get_config()
-        link = MoySkladOrderLink.objects.get(pk=task.order_link_id)
+        link = MoySkladOrderLink.objects.filter(pk=task.order_link_id).first()
+        if link is None:
+            return
+        if link.deletion_requested_at is not None:
+            complete_task(task)
+            return
         state = MoySkladSyncState.objects.filter(account_id=task.account_id, environment=task.environment).first()
         if link.account_id != task.account_id or link.environment != task.environment:
             raise MoySkladError("account_mismatch")
         enabled = state.statuses_enabled if state and state.statuses_enabled is not None else config.statuses_enabled
-        if config.account_id != task.account_id or config.environment != task.environment or not enabled or (state and state.access_error_code):
+        api = MoySkladApiState.objects.filter(account_id=task.account_id).first()
+        if config.account_id != task.account_id or config.environment != task.environment or not enabled or (api and api.access_error_code):
             retry_task(task, "stream_paused")
             return
         if link.external_id is None:
@@ -115,9 +121,20 @@ def schedule_status_tasks(config=None, *, now=None):
     if not enabled:
         return 0
     count = 0
-    for link in MoySkladOrderLink.objects.filter(account_id=config.account_id, environment=config.environment, external_id__isnull=False).iterator():
+    for link in MoySkladOrderLink.objects.filter(account_id=config.account_id, environment=config.environment, external_id__isnull=False, deletion_requested_at__isnull=True).iterator():
         if link.status_checked_at is None or link.status_checked_at <= now - status_interval(link):
-            enqueue_task(kind="status_sync", dedupe_key=f"status:{link.pk}", account_id=link.account_id,
-                         environment=link.environment, order_link=link, object_id=str(link.order_id))
-            count += 1
+            count += enqueue_status_task(link.pk)
     return count
+
+
+def enqueue_status_task(link_id):
+    """Recheck a scheduled snapshot under the link lock before inserting work."""
+    with transaction.atomic():
+        link = MoySkladOrderLink.objects.select_for_update().filter(
+            pk=link_id, external_id__isnull=False, deletion_requested_at__isnull=True,
+        ).first()
+        if link is None:
+            return 0
+        enqueue_task(kind="status_sync", dedupe_key=f"status:{link.pk}", account_id=link.account_id,
+                     environment=link.environment, order_link=link, object_id=str(link.order_id))
+        return 1

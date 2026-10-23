@@ -753,3 +753,7 @@ body.change-list #changelist-filter details { border-bottom: 1px solid var(--bac
   body.change-form #content .readonly .moysklad-facts dt { border-bottom: 0; padding-bottom: 0.35rem; }
   body.change-form #content .readonly .moysklad-facts dd { padding-top: 0; }
 }
+.backoffice-request-actions { margin-block: 1.5rem; }
+.backoffice-request-actions form { margin-block: 1rem; }
+.backoffice-request-actions :is(button, a[class]) { min-height: 44px; max-width: 100%; font-size: max(1rem, 16px); white-space: normal; overflow-wrap: anywhere; }
+.backoffice-request-actions :is(button, a):focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
