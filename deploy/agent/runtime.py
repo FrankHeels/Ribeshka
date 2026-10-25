@@ -78,6 +78,9 @@ class Runtime:
         if uid <= 0 or gid <= 0:
             raise ValueError("Application image must not run as root")
         os.chown(target, uid, gid)
+        # The host agent's private umask is 077; Nginx uses a different UID and
+        # needs to traverse this bind-mount root to serve public static files.
+        target.chmod(0o755)
         self.compose(release, "config", "--quiet")
 
     def quiesce(self, workers):
