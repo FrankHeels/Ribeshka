@@ -1,5 +1,7 @@
 {
   "repository": "FrankHeels/Ribeshka",
+  "repository_policy": "private-free",
+  "rollback_bot_login": "fishsite-rollback-frankheels[bot]",
   "image": "ghcr.io/frankheels/ribeshka",
   "platform": "linux/amd64",
   "hostname": "ribeshka39.ru",

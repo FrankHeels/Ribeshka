@@ -113,7 +113,7 @@ class Agent:
         elif not self.github.contains(commit, head):
             raise ValueError("main changed while recovering; retry under the lock")
         self.save("awaiting_recovery_ci", main_sha=self.github.head())
-        release = self.github.release(commit)
+        release = self.github.release(commit, recovery=old["sha"])
         if not release:
             return
         if not self.github.same_tree(commit, old["sha"]):

@@ -25,7 +25,7 @@ class GitHub:
     def head(self):
         return self.tip
 
-    def release(self, sha):
+    def release(self, sha, *, recovery=None):
         return self.releases.get(sha)
 
     def compatible(self, base, head, ledger):

@@ -1,6 +1,6 @@
 # CI/CD и автоматическое восстановление FishSite
 
-Рабочая схема: ветка → PR → одобрение актуального diff → `CI required` → squash merge
+Рабочая схема: ветка → PR → проверка актуального diff и `CI required` → squash merge
 в `main` → повторная проверка итогового SHA → GHCR → серверный pull-agent. После merge
 отдельного подтверждения выпуска нет. GitHub runners не получают SSH, БД, SMTP, МойСклад
 или ключ бота. Сервер сам обращается к GitHub/GHCR по HTTPS.
@@ -8,15 +8,25 @@
 ## Граница готовности
 
 Код процесса находится в `.github/workflows/`, `deploy/agent/` и `deploy/production/`.
-Наличие файлов не означает, что GitHub rulesets, GitHub App и timer уже включены.
-До включения нужны все условия раздела «Первый выпуск». Если защита `main` недоступна,
-агент отказывает новым выпускам; восстановление уже начатого выпуска продолжает работать.
+Наличие файлов не означает, что первый выпуск выполнен и timer включён.
+До включения нужны все условия раздела «Первый выпуск».
+
+25.10.2026 владелец согласовал вариант **без GitHub Pro**, с приватным репозиторием и без
+обязательного второго reviewer. `repository_policy: private-free` выбирается явно в хостовом
+конфиге. В GitHub нет технического запрета direct/force push и нет обязательного review/CI
+перед merge. Процесс работы через PR соблюдает владелец; сервер независимо проверяет допуск
+к выпуску. Это осознанное отличие от первоначального требования защиты main, не её эмуляция.
+Режим `protected` сохранён для будущего перехода на платные rulesets; ошибка API никогда
+автоматически не переключает его в `private-free`.
 
 25.10.2026 проверено: приватный `FrankHeels/Ribeshka` возвращает HTTP 403 при обращении
 к rulesets с требованием GitHub Pro. Публичность репозитория ради обхода ограничения не меняется.
 Сервер `186.246.28.83`, amd64, обслуживает `https://ribeshka39.ru/`; существующий релиз
 `486a60fb267614ca5a1b629e2b52ce4c106562c5` собран локально, ещё не является baseline нового агента.
 Production-файлы и исторические протоколы перенесены с сервера в Git без env и ключей.
+App `fishsite-rollback-frankheels` (ID `5470359`, installation `175227037`) установлен только
+в `Ribeshka`; ключ перенесён на VPS с режимом `0600`, подключение проверено. Первая baseline
+нового процесса и включение timer фиксируются отдельно после реального выпуска.
 
 ## GitHub
 
@@ -38,21 +48,37 @@ Production-файлы и исторические протоколы перен�
 ветку main, conclusion, SHA, номер попытки, digest ZIP и все поля manifest. Неудачный новый
 rerun отменяет пригодность предыдущего успешного запуска того же SHA.
 
+Перед получением образа сервер проверяет, что SHA — именно `merge_commit_sha` закрытого,
+слитого PR в main этого репозитория, а последняя попытка `ci.yml` для сохранённого head SHA
+этого PR успешна. Затем проверяется успешный `release.yml` для итогового SHA. Для всех новых
+коммитов по первой родительской цепочке от работающего релиза требуется такая же связь с PR:
+прямой push нельзя скрыть последующим корректным merge. Переписанная или слишком длинная
+история блокирует выпуск. В GitHub включён squash merge; rebase merge не поддерживается.
+После прямого push требуется разбор и исправление истории оператором, агент не делает force push.
+
+Исключение доступно только во время уже записанного recovery: сохранённый revert SHA,
+push от настроенного Bot, единственный родитель, точный `FishSite-Restore`, ancestry и полное
+совпадение дерева с рабочим релизом. Одна строка в сообщении коммита не даёт обхода PR.
+
 Создай отдельный private GitHub App, установи только в этот репозиторий. Нужны repository
 permissions: Contents write, Workflows write (откат может возвращать workflow-файлы), Actions read,
-Commit statuses write, Administration read. Webhook выключен. Private key находится только
-на сервере, `0600`; агент через OpenSSL получает installation token на час. Для pull приватного
+Commit statuses write, Administration read, Pull requests read. Webhook выключен. Рабочий private key
+на сервере имеет режим `0600`; агент через OpenSSL получает installation token на час. Для pull приватного
 GHCR настрой отдельный read:packages credential через `docker login --password-stdin`, в
 `DOCKER_CONFIG=/etc/fishsite/docker`. Не используй персональный токен владельца для обхода main.
 
-После включения GitHub Pro и создания App:
+Для согласованного варианта без Pro:
 
 ```sh
-python3 deploy/configure_github.py --app-id <APP_ID> --bot-login '<APP_SLUG>[bot]' --dry-run
-python3 deploy/configure_github.py --app-id <APP_ID> --bot-login '<APP_SLUG>[bot]'
+python3 deploy/configure_github.py --policy private-free --app-id 5470359 --bot-login 'fishsite-rollback-frankheels[bot]' --dry-run
+python3 deploy/configure_github.py --policy private-free --app-id 5470359 --bot-login 'fishsite-rollback-frankheels[bot]'
 ```
 
-Создаются два active ruleset для `main`: запрет удаления/force push без исключений и
+Команда включает только squash merge и записывает `ROLLBACK_BOT_LOGIN`; rulesets не создаёт.
+Ревью кода выполняется перед merge, формального одобрения второго пользователя не требуется.
+
+Для отдельного перехода на `protected` нужны платный тариф, второй reviewer и явное изменение
+хостовой политики. С `--policy protected` создаются два active ruleset для `main`: запрет удаления/force push без исключений и
 PR + одно одобрение + сброс старых одобрений + одобрение последнего push другим человеком +
 разрешение обсуждений + актуальный `CI required` от GitHub Actions. Во втором ruleset только
 rollback App может пройти без PR/CI. Даже бот не может переписать историю. Администраторы
@@ -72,7 +98,7 @@ Timer раз в 30 секунд после завершения предыдущ
 
 Порядок обычного выпуска:
 
-1. Проверить main protection, выбрать успешно проверенный текущий head. Готовые старые релизы
+1. Проверить выбранную хостовую политику, связь с merged PR и CI, выбрать успешно проверенный текущий head. Готовые старые релизы
    пропускаются, если main уже ушёл вперёд. Проверить полный diff от реально работающего SHA,
    включая миграции пропущенных merge. Слишком большой/неполный API diff блокирует выпуск.
 2. Pull по digest, проверка revision label, архитектуры и `USER app`; подготовка отдельного
@@ -140,12 +166,14 @@ retention и независимые аварийные уведомления в
 
 ## Первый выпуск
 
-1. Провести ревью этого PR, получить зелёный CI, создать App/GHCR read credential и включить rulesets.
+1. Проверить изменения PR, получить зелёный CI, создать App/GHCR read credential и выполнить
+   настройку GitHub для `private-free`. Rulesets и второе одобрение в этом режиме не требуются.
    Не включать timer с заглушками ID или до создания первой проверенной baseline.
 2. Установить проверенную хостовую копию в `/opt/fishsite/deployer`; сохранить старый каталог
    релиза и его Compose/env/static для первоначального rollback. Не заменять production checkout
    произвольным текущим working tree. Установить `age`, Python 3, OpenSSL, Docker/Compose.
-3. Создать `/etc/fishsite/deployer.json` из примера, режим `0600`. Заполнить App ID, installation ID
+3. Создать `/etc/fishsite/deployer.json` из примера, режим `0600`. Указать `repository_policy: private-free`,
+   точный `rollback_bot_login`, App ID, installation ID
    и пути. Перенести проверенные POSTGRES_IMAGE/NGINX_IMAGE с digest в `shared/secrets/images.env`;
    приложение и static агент задаёт отдельно. Рабочие runtime/migration/db env остаются на сервере.
 4. После merge дождаться успешного `release.yml`. Выполнить первоначальное переключение:
@@ -216,6 +244,8 @@ python3 -m deploy.ci.container_smoke fishsite:ci
 
 Unit-сценарии моделируют успех, отказ CI, ошибку миграции, неработающее приложение, возврат
 старого релиза, два merge, гонку revert, потерянный ответ GitHub, crash/restart и блокировку recovery.
+Отдельно проверяются отклонение прямого push (включая push перед корректным PR), неслитого PR,
+чужого SHA/репозитория, неуспешного rerun, неизвестной политики и поддельного revert.
 Они не заменяют отдельную проверку реального GitHub App и первичного запуска на VPS.
 
 Официальные справки: [reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows),

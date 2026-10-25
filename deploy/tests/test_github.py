@@ -34,6 +34,23 @@ class ProvenanceTests(unittest.TestCase):
         with patch.object(github, "api", return_value={"workflow_runs": [RUN, RUN | {"run_attempt": 3, "conclusion": "failure"}]}):
             self.assertIsNone(github.release(SHA))
 
+    def test_successful_release_ci_without_merged_pr_never_downloads_artifact(self):
+        github = GitHub(CONFIG, "test")
+        with patch.object(github, "api", return_value={"workflow_runs": [RUN]}) as api, \
+                patch.object(github, "verified_pr", return_value=False):
+            self.assertIsNone(github.release(SHA))
+            self.assertEqual(api.call_count, 1)
+
+    def test_recovery_uses_separate_saved_target_admission(self):
+        github = GitHub(CONFIG, "test")
+        good = "c" * 40
+        with patch.object(github, "api", return_value={"workflow_runs": [RUN]}), \
+                patch.object(github, "verified_recovery", return_value=False) as check, \
+                patch.object(github, "verified_pr") as pull:
+            self.assertIsNone(github.release(SHA, recovery=good))
+            check.assert_called_once_with(SHA, good, RUN)
+            pull.assert_not_called()
+
     def test_downloaded_manifest_digest_is_verified_without_extracting_paths(self):
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w") as z:
@@ -48,7 +65,7 @@ class ProvenanceTests(unittest.TestCase):
             if "/artifacts?" in path:
                 return {"artifacts": [artifact]}
             return {"workflow_runs": [RUN]}
-        with patch.object(github, "api", side_effect=api):
+        with patch.object(github, "api", side_effect=api), patch.object(github, "verified_pr", return_value=True):
             self.assertEqual(github.release(SHA), MANIFEST)
             artifact["digest"] = "sha256:" + "0" * 64
             with self.assertRaises(ValueError):

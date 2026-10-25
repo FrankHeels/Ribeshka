@@ -14,6 +14,10 @@ from .state import Agent, atomic_json
 
 def load_config(path):
     config = json.loads(Path(path).read_text())
+    if config.get("repository_policy") not in {"private-free", "protected"}:
+        raise ValueError("Explicit repository_policy required")
+    if not re.fullmatch(r"[A-Za-z0-9-]+\[bot\]", config.get("rollback_bot_login", "")):
+        raise ValueError("Configure the rollback App bot login")
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", config["repository"]):
         raise ValueError("Invalid repository")
     if config["image"] != "ghcr.io/" + config["repository"].lower() or config["platform"] != "linux/amd64":

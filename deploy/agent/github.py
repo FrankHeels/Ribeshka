@@ -66,7 +66,7 @@ def app_token(config):
     token = request(f'/app/installations/{int(config["installation_id"])}/access_tokens', jwt, {
         "repositories": [config["repository"].split("/")[1]],
         "permissions": {"contents": "write", "actions": "read", "statuses": "write",
-                        "administration": "read", "workflows": "write"},
+                        "administration": "read", "workflows": "write", "pull_requests": "read"},
     })
     return token["token"]
 
@@ -108,7 +108,54 @@ class GitHub:
             return True
         return self.api(f"/compare/{ancestor}...{head}")["status"] in {"ahead", "identical"}
 
-    def release(self, sha):
+    def verified_pr(self, sha):
+        pulls = self.api(f"/commits/{sha}/pulls?per_page=100")
+        if len(pulls) >= 100:
+            return False
+        pulls = [p for p in pulls if p.get("state") == "closed" and p.get("merged_at")
+                 and p.get("merge_commit_sha") == sha and p["base"]["ref"] == "main"
+                 and p["base"]["repo"]["full_name"] == self.config["repository"]]
+        if len(pulls) != 1:
+            return False
+        pull = pulls[0]
+        head = pull["head"]["sha"]
+        if not SHA.fullmatch(head) or not pull["head"].get("repo"):
+            return False
+        runs = self.api(f"/actions/workflows/ci.yml/runs?event=pull_request&head_sha={head}&per_page=100")["workflow_runs"]
+        runs = [r for r in runs if r["event"] == "pull_request" and r["head_sha"] == head
+                and r["head_repository"]["full_name"] == pull["head"]["repo"]["full_name"]
+                and any(p["number"] == pull["number"] and p["head"]["sha"] == head
+                        and p["base"]["ref"] == "main" for p in r.get("pull_requests", []))]
+        if not runs:
+            return False
+        run = max(runs, key=lambda r: (r["id"], r["run_attempt"]))
+        return run["status"] == "completed" and run["conclusion"] == "success"
+
+    def verified_recovery(self, sha, good, run):
+        actor = run.get("actor", {})
+        if actor.get("type") != "Bot" or actor.get("login") != self.config["rollback_bot_login"]:
+            return False
+        commit = self.commit(sha)
+        markers = re.findall(r"^FishSite-Restore: ([0-9a-f]{40})$", commit["message"], re.M)
+        return (markers == [good] and len(commit["parents"]) == 1
+                and self.contains(good, sha) and self.same_tree(sha, good))
+
+    def verified_range(self, base, head):
+        # A valid final PR must not smuggle an earlier direct push into production.
+        # Walk main's first-parent history, not the feature commits inside a merge.
+        cursor = head
+        for _ in range(250):
+            if cursor == base:
+                return
+            if not self.verified_pr(cursor):
+                raise ValueError("main contains a commit without a merged PR and successful PR CI")
+            parents = self.commit(cursor)["parents"]
+            if not parents:
+                break
+            cursor = parents[0]["sha"]
+        raise ValueError("Cannot prove the complete first-parent PR history from the running release")
+
+    def release(self, sha, *, recovery=None):
         if not SHA.fullmatch(sha):
             raise ValueError("Full SHA required")
         runs = self.api(f"/actions/workflows/release.yml/runs?event=push&head_sha={sha}&per_page=100")["workflow_runs"]
@@ -119,6 +166,9 @@ class GitHub:
             return None
         run = max(runs, key=lambda r: (r["id"], r["run_attempt"]))
         if run["status"] != "completed" or run["conclusion"] != "success":
+            return None
+        admitted = self.verified_pr(sha) if recovery is None else self.verified_recovery(sha, recovery, run)
+        if not admitted:
             return None
         artifacts = self.api(f'/actions/runs/{run["id"]}/artifacts?per_page=100')["artifacts"]
         name = f'release-{sha}-{run["run_attempt"]}'
@@ -149,6 +199,7 @@ class GitHub:
                 for item in tree["tree"] if item["type"] == "blob" and is_migration(item["path"])}
 
     def compatible(self, base, head, ledger):
+        self.verified_range(base, head)
         comparison = self.api(f"/compare/{base}...{head}")
         files = comparison.get("files", [])
         if comparison["status"] != "ahead" or len(files) >= 300 or comparison["total_commits"] > 250:
@@ -177,11 +228,20 @@ class GitHub:
     def report(self, state):
         sha = state.get("main_sha") or state["current"]["sha"]
         healthy = state["phase"] == "healthy" and state["current"]["sha"] == sha
-        description = f'{state["phase"]}; running {state["current"]["sha"][:12]}'
+        phase = "awaiting verified release" if state["phase"] == "healthy" and not healthy else state["phase"]
+        description = f'{phase}; running {state["current"]["sha"][:12]}'
         self.api(f"/statuses/{sha}", {"state": "success" if healthy else "pending",
                                     "context": "production", "description": description})
 
     def rules_ready(self):
+        policy = self.config.get("repository_policy")
+        if policy == "private-free":
+            repository = self.api("")
+            if repository["full_name"] != self.config["repository"] or not repository["private"]:
+                raise ValueError("Expected the configured private repository")
+            return
+        if policy != "protected":
+            raise ValueError("Explicit repository policy required")
         rules = self.api("/rules/branches/main")
         by_type = {rule["type"]: rule for rule in rules}
         if not {"pull_request", "required_status_checks", "non_fast_forward", "deletion"} <= by_type.keys():
