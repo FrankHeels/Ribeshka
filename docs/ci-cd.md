@@ -21,12 +21,13 @@
 
 25.10.2026 проверено: приватный `FrankHeels/Ribeshka` возвращает HTTP 403 при обращении
 к rulesets с требованием GitHub Pro. Публичность репозитория ради обхода ограничения не меняется.
-Сервер `186.246.28.83`, amd64, обслуживает `https://ribeshka39.ru/`; существующий релиз
-`486a60fb267614ca5a1b629e2b52ce4c106562c5` собран локально, ещё не является baseline нового агента.
+Сервер `186.246.28.83`, amd64, обслуживает `https://ribeshka39.ru/`. До включения агента он
+работал на локально собранном `486a60fb267614ca5a1b629e2b52ce4c106562c5`.
 Production-файлы и исторические протоколы перенесены с сервера в Git без env и ключей.
 App `fishsite-rollback-frankheels` (ID `5470359`, installation `175227037`) установлен только
-в `Ribeshka`; ключ перенесён на VPS с режимом `0600`, подключение проверено. Первая baseline
-нового процесса и включение timer фиксируются отдельно после реального выпуска.
+в `Ribeshka`; ключ перенесён на VPS с режимом `0600`, подключение проверено. Первая проверенная
+baseline `b3617546fe4d5274ac457c9f59ec39232e7e574a` установлена 25.10.2026, timer включён.
+Результаты и границы проверки — в [протоколе запуска](ci-cd-acceptance-2026-10-25.md).
 
 ## GitHub
 
@@ -224,6 +225,14 @@ backup receipt, recovery commit, активные workers и ledger. `current` �
 В GitHub commit status `production` показывает phase и принятый SHA; он не является PR gate.
 HTTP `/healthz/` показывает SHA ответившего процесса и выполняет запрос к БД. Логи операций
 доступны только root в `operations.log`; не пересылай их без проверки на чувствительные данные.
+Старый `/opt/fishsite/current` сохранён как legacy checkout для первичного восстановления;
+он больше не показывает работающую версию. Источник истины — `state.json`, `/healthz/` и digest
+контейнеров. Хостовой агент установлен отдельно в `/opt/fishsite/deployer`.
+
+Токен GHCR имеет только `read:packages`, хранится в `/etc/fishsite/docker/config.json` (`0600`)
+и истекает **23.01.2027 в 19:28 UTC**. До этой даты замени его отдельным classic-токеном с тем же
+scope через `docker --config /etc/fishsite/docker login ghcr.io --username FrankHeels --password-stdin`.
+Ошибка pull блокирует новый выпуск до остановки работающего приложения.
 
 Если recovery не завершается, сначала исправь указанную причину (registry, GitHub App, старый
 контейнер, HTTPS, storage), затем повтори `python3 -m deploy.agent once`. Не удаляй state/lock,
