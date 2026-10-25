@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from deploy.agent.state import Agent, atomic_json
 
@@ -190,7 +191,7 @@ class DeploymentScenarios(unittest.TestCase):
         self.assertEqual(self.agent.state["current"]["sha"], C)
 
     def test_process_restart_in_each_mutating_phase_restores_before_any_new_release(self):
-        for phase in ("deploying", "migrating", "switching", "recovering", "reverting_main"):
+        for phase in ("deploying", "migrating", "switching", "recovering"):
             with self.subTest(phase=phase):
                 self.setUp()
                 self.agent.save(phase, candidate=release(B))
@@ -199,6 +200,23 @@ class DeploymentScenarios(unittest.TestCase):
                 self.assertEqual(self.runtime.calls[0][0], "quiesce")
                 self.assertEqual(self.runtime.calls[1][0:2], ("activate", A))
                 self.assertEqual(self.agent.state["phase"], "awaiting_recovery_ci")
+
+    def test_restored_phases_check_health_without_restarting_on_github_failure(self):
+        for phase in ("reverted_runtime", "reverting_main", "awaiting_recovery_ci"):
+            with self.subTest(phase=phase):
+                self.setUp()
+                self.agent.save(phase, candidate=release(B), running_sha=A)
+                self.github.fail_revert = True
+                with self.assertRaises(RuntimeError):
+                    self.agent.tick()
+                self.assertEqual([c[0] for c in self.runtime.calls], ["health"])
+
+    def test_unhealthy_restored_runtime_is_restarted_before_revert_retry(self):
+        self.agent.save("reverted_runtime", candidate=release(B), running_sha=A)
+        with patch.object(self.runtime, "health", side_effect=[RuntimeError("unavailable"), None]):
+            self.agent.tick()
+        self.assertEqual([c[0] for c in self.runtime.calls], ["quiesce", "activate"])
+        self.assertEqual(self.agent.state["phase"], "awaiting_recovery_ci")
 
     def test_revert_api_failure_keeps_recovery_block_and_retries(self):
         self.github.fail_revert = True

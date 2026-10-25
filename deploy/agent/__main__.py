@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import sys
 
-from .github import GitHub, app_token
+from .github import GitHub
 from .runtime import Runtime
 from .state import Agent, atomic_json
 
@@ -38,6 +38,17 @@ def load_config(path):
     return config
 
 
+def report_state(agent, github, path):
+    if not agent.state.get("current"):
+        return  # No accepted baseline/SHA to report yet.
+    stamp = {key: agent.state.get(key) for key in
+             ("phase", "main_sha", "current", "recovery_commit", "blocked_reason")}
+    if not path.exists() or json.loads(path.read_text()) != stamp:
+        github.report(agent.state)
+        # A failed API call must remain retryable, including after process restart.
+        atomic_json(path, stamp)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="/etc/fishsite/deployer.json")
@@ -56,9 +67,10 @@ def main():
         except BlockingIOError:
             print("Another deploy, backup or import owns the operations lock")
             return 0
-        github = GitHub(config, app_token(config))
+        github = GitHub(config)
         runtime = Runtime(config)
         agent = Agent(state_path, github, runtime)
+        report_path = Path(config["state_dir"]) / "reported.json"
         try:
             # Existing recovery must proceed even if protection is later misconfigured.
             if agent.state["phase"] in {"uninitialized", "healthy"}:
@@ -69,14 +81,22 @@ def main():
                 agent.bootstrap(args.sha)
             else:
                 agent.tick()
-            stamp = {key: agent.state.get(key) for key in ("phase", "main_sha", "current", "recovery_commit")}
-            report_path = Path(config["state_dir"]) / "reported.json"
-            if not report_path.exists() or json.loads(report_path.read_text()) != stamp:
-                github.report(agent.state)
-                atomic_json(report_path, stamp)
+            if agent.state.get("blocked_reason"):
+                agent.save(agent.state["phase"], blocked_reason=None)
+            agent.operation = "status publication"
+            report_state(agent, github, report_path)
             print(json.dumps({"phase": agent.state["phase"], "running_sha": agent.state["current"]["sha"]}))
             return 0
         except Exception as error:
+            # Keep phase/current intact: preflight failures must not trigger a
+            # rollback, and recovery failures must not unblock new deployments.
+            # Only stage + exception class are public, never exception messages.
+            agent.save(agent.state["phase"], blocked_reason=f"{agent.operation}: {type(error).__name__}")
+            try:
+                report_state(agent, github, report_path)
+            except Exception:
+                # The durable reason survives GitHub/auth outages for a later poll.
+                pass
             # Do not print subprocess output, server data or credential-bearing URLs.
             print(f"Deployment stopped: {type(error).__name__}; inspect private state/logs", file=sys.stderr)
             return 1
