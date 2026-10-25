@@ -3,7 +3,7 @@ set -euo pipefail
 # Host networking is intentional: existing tests verify both peer addresses,
 # the port, role privileges, cluster_name and HBA rejection of the primary DB.
 docker run -d --name fishsite-tests --network host \
-  -e POSTGRES_USER=fishsite_test_admin -e POSTGRES_PASSWORD=ci-admin-only \
+  -e POSTGRES_USER=fishsite_test_admin -e POSTGRES_PASSWORD=ci-admin-only -e PGPORT=15432 \
   -v "$PWD/deploy/ci/postgres-init.sh:/docker-entrypoint-initdb.d/10-tests.sh:ro" \
   postgres:18.6 -c listen_addresses=127.0.0.1 -c port=15432 -c cluster_name=fishsite-tests
 for attempt in $(seq 1 60); do
@@ -12,4 +12,5 @@ for attempt in $(seq 1 60); do
   fi
   sleep 1
 done
+docker logs fishsite-tests
 exit 1
