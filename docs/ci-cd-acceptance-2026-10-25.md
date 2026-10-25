@@ -25,6 +25,22 @@ GitHub Free без обязательного второго reviewer. Прям�
 Это исторический SHA первичного включения. Актуальный SHA всегда проверяется через `/healthz/`,
 серверный state и `main`; следующие обычные merge меняют его автоматически.
 
+## Обычный автоматический выпуск
+
+После зелёного CI слит [PR #4](https://github.com/FrankHeels/Ribeshka/pull/4), итоговый SHA —
+`396e67dd61884c2f96307975a80f3abf0dbcd29b`. Пока
+[Release 40228073548](https://github.com/FrankHeels/Ribeshka/actions/runs/40228073548)
+выполнялся, сервер сохранил работающую baseline и выставил `awaiting verified release`.
+После успешной публикации timer сам выполнил backup, миграционную проверку, static и переключение.
+Команды ручного деплоя или ручного запуска service/agent для этого выпуска не выполнялись.
+
+После переключения `state.current.sha`, `/healthz/` и `main` совпали с `396e67dd…`,
+`state.previous.sha` сохранил `b3617546…`, `phase=healthy`, `candidate=null`, `error=null`.
+Systemd завершил запуск с `Result=success`, `ExecMainStatus=0`; GitHub `production=success`.
+Снаружи повторно проверены главная, каталог, SHA статики и checksum CSS.
+Следующий обычный merge обновления этого протокола проверяет повторяемость автоматического
+выпуска; окончательный результат доступен в статусе `production` соответствующего коммита.
+
 ## Проверенные сценарии
 
 | Сценарий | Доказательство и граница проверки |
