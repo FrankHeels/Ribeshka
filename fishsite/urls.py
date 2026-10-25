@@ -4,9 +4,11 @@ from django.contrib import admin
 from django.urls import include, path
 
 from content.views import home, not_found, sitemap
+from fishsite.health import ready
 
 
 urlpatterns = [
+    path("healthz/", ready, name="healthz"),
     path("two_factor/", include("fishsite.backoffice.auth")),
     path("admin/", admin.site.urls),
     path("integrations/", include("integrations.urls")),

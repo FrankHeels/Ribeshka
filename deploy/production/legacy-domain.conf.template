@@ -1,0 +1,31 @@
+# Include these server blocks INSIDE http {} in the main Nginx configuration.
+# The old certificate is retained and renewed for the HTTPS redirect.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __OLD_DOMAIN__;
+    if ($host != __OLD_DOMAIN__) { return 444; }
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/acme;
+        default_type text/plain;
+        limit_except GET { deny all; }
+        try_files $uri =404;
+    }
+
+    location / {
+        return 308 https://__DOMAIN__$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name __OLD_DOMAIN__;
+    ssl_certificate /etc/letsencrypt/live/__OLD_DOMAIN__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__OLD_DOMAIN__/privkey.pem;
+    if ($host != __OLD_DOMAIN__) { return 444; }
+    if ($ssl_server_name != __OLD_DOMAIN__) { return 444; }
+    add_header Strict-Transport-Security "max-age=300" always;
+    return 308 https://__DOMAIN__$request_uri;
+}

@@ -1,0 +1,53 @@
+name: Verify
+on:
+  workflow_call:
+    inputs:
+      migration_base:
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: tests-migrations-image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      FISHSITE_TEST_DB_HOST: 127.0.0.1
+      FISHSITE_TEST_DB_PORT: '15432'
+      FISHSITE_TEST_DB_USER: fishsite_tester
+      FISHSITE_TEST_DB_PASSWORD: ci-tests-only
+      FISHSITE_TEST_DB_NAME: postgres
+      FISHSITE_SKIP_DOTENV: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: '0.13.5'
+          enable-cache: false
+      - run: uv sync --frozen
+      - name: Deployment failure and recovery scenarios
+        run: uv run python -m unittest discover -s deploy/tests -v
+      - name: Backward compatible migrations
+        env:
+          MIGRATION_BASE: ${{ inputs.migration_base }}
+          ROLLBACK_BOT_LOGIN: ${{ vars.ROLLBACK_BOT_LOGIN }}
+        run: uv run python -m deploy.ci.check_migrations
+      - name: Isolated PostgreSQL 18.6
+        run: bash deploy/ci/postgres.sh
+      - name: Existing Django tests
+        run: uv run python manage.py test tests --settings=fishsite.settings_test --noinput
+      - name: Missing migrations
+        run: uv run python -m deploy.ci.check_model_state
+      - name: Existing browser unit tests
+        run: node --test tests/js/*.test.cjs
+      - name: Build production architecture
+        run: docker build --platform linux/amd64 --tag fishsite:ci .
+      - name: Isolated container deployment and HTTPS smoke
+        run: python3 -m deploy.ci.container_smoke fishsite:ci
+      - name: Dispose isolated database
+        if: always()
+        run: docker rm -f -v fishsite-tests || true

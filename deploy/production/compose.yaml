@@ -1,0 +1,178 @@
+name: fishsite
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  image: ${FISHSITE_IMAGE:?Set the approved immutable FISHSITE_IMAGE}
+  user: app
+  env_file:
+    - path: /opt/fishsite/shared/secrets/runtime.env
+      format: raw
+  environment: &runtime-environment
+    FISHSITE_SKIP_DOTENV: "1"
+    FISHSITE_RELEASE_SHA: ${FISHSITE_RELEASE_SHA:?Set full release SHA}
+    DJANGO_DEBUG: "false"
+    DJANGO_DB_NAME: fishsite
+    DJANGO_DB_USER: fishsite_runtime
+    DJANGO_DB_HOST: db
+    DJANGO_DB_PORT: "5432"
+    DJANGO_MEDIA_ROOT: /app/media
+  depends_on:
+    db:
+      condition: service_healthy
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging: *logging
+
+services:
+  db:
+    image: ${POSTGRES_IMAGE:?Set the approved immutable POSTGRES_IMAGE}
+    restart: unless-stopped
+    env_file:
+      - path: /opt/fishsite/shared/secrets/db.env
+        format: raw
+    volumes:
+      # PostgreSQL 18 stores its versioned PGDATA below this directory.
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  web:
+    <<: *app
+    restart: unless-stopped
+    networks:
+      - db
+      - frontend
+    volumes:
+      - ${FISHSITE_STATIC_DIR:?Set release static directory}:/app/staticfiles:ro
+      - type: bind
+        source: /opt/fishsite/shared/media
+        target: /app/media
+        bind:
+          create_host_path: false
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import http.client;
+          c = http.client.HTTPConnection('127.0.0.1', 8000, timeout=5);
+          c.request('GET', '/healthz/', headers={'Host': '${FISHSITE_HOST:-ribeshka39.ru}', 'X-Forwarded-Proto': 'https'});
+          raise SystemExit(0 if c.getresponse().status == 200 else 1)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  migration:
+    <<: *app
+    profiles: ["migration"]
+    restart: "no"
+    env_file:
+      - path: /opt/fishsite/shared/secrets/migration.env
+        format: raw
+    environment:
+      <<: *runtime-environment
+      DJANGO_DB_USER: fishsite_owner
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    networks:
+      - db
+    volumes:
+      - ${FISHSITE_STATIC_DIR:?Set release static directory}:/app/staticfiles
+      - type: bind
+        source: /opt/fishsite/shared/media
+        target: /app/media
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /opt/fishsite/shared/import
+        target: /imports
+        read_only: true
+        bind:
+          create_host_path: false
+
+  worker:
+    <<: *app
+    profiles: ["notifications"]
+    restart: unless-stopped
+    command: ["python", "manage.py", "process_notifications"]
+    stop_grace_period: 120s
+    networks:
+      - db
+      - worker_egress
+
+  moysklad-worker:
+    <<: *app
+    profiles: ["moysklad"]
+    restart: unless-stopped
+    command: ["python", "manage.py", "process_moysklad"]
+    stop_grace_period: 120s
+    networks:
+      - db
+      - worker_egress
+
+  nginx:
+    image: ${NGINX_IMAGE:?Set the approved immutable NGINX_IMAGE}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - frontend
+    volumes:
+      - type: bind
+        source: /opt/fishsite/shared/nginx.conf
+        target: /etc/nginx/nginx.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - ${FISHSITE_STATIC_DIR:?Set release static directory}:/usr/share/nginx/html/static:ro
+      - type: bind
+        source: /opt/fishsite/shared/media
+        target: /usr/share/nginx/html/media
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /etc/letsencrypt
+        target: /etc/letsencrypt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/fishsite-acme
+        target: /var/www/acme
+        read_only: true
+        bind:
+          create_host_path: false
+    logging: *logging
+
+networks:
+  db:
+    name: fishsite_db
+    internal: true
+  frontend:
+    name: fishsite_frontend
+  worker_egress:
+    name: fishsite_worker_egress
+
+volumes:
+  postgres_data:
+    name: fishsite_postgres_data

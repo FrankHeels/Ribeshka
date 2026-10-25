@@ -1,0 +1,23 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+    with:
+      migration_base: ${{ github.event.pull_request.base.sha }}
+  required:
+    name: CI required
+    runs-on: ubuntu-24.04
+    needs: verify
+    if: always()
+    steps:
+      - env:
+          RESULT: ${{ needs.verify.result }}
+        run: test "$RESULT" = success

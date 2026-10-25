@@ -27,3 +27,4 @@ media/
 
 .env.test
 .test-postgres/
+.test-deployment/
