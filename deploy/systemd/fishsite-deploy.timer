@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll verified FishSite releases over outbound HTTPS
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=30s
+AccuracySec=5s
+Unit=fishsite-deploy.service
+
+[Install]
+WantedBy=timers.target

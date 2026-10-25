@@ -1,0 +1,13 @@
+[Unit]
+Description=Restrict FishSite SMTP egress to the approved port
+Requires=docker.service
+After=docker.service ufw.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/fishsite-smtp-egress
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,24 @@
+[Unit]
+Description=FishSite verified release pull and recovery
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/fishsite/deployer.json
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+WorkingDirectory=/opt/fishsite/deployer
+ExecStart=/usr/bin/python3 -m deploy.agent once
+TimeoutStartSec=30min
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/fishsite/shared /run
+Environment=DOCKER_CONFIG=/etc/fishsite/docker
+
+[Install]
+WantedBy=multi-user.target

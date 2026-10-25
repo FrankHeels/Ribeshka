@@ -1,0 +1,17 @@
+{
+  "repository": "FrankHeels/Ribeshka",
+  "image": "ghcr.io/frankheels/ribeshka",
+  "platform": "linux/amd64",
+  "hostname": "ribeshka39.ru",
+  "catalog_path": "/catalog/categories/kopchenaya-ryba/",
+  "app_id": 0,
+  "installation_id": 0,
+  "app_key": "/etc/fishsite/rollback-app.pem",
+  "state_dir": "/opt/fishsite/shared/deployer",
+  "lock_file": "/opt/fishsite/shared/operations.lock",
+  "compose_file": "/opt/fishsite/deployer/deploy/production/compose.yaml",
+  "images_env": "/opt/fishsite/shared/secrets/images.env",
+  "media_dir": "/opt/fishsite/shared/media",
+  "backup_recipient_file": "/opt/fishsite/shared/secrets/backup-age-recipient.txt",
+  "backup_upload_command": []
+}
