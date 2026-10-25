@@ -26,6 +26,7 @@ def atomic_json(path, value):
 class Agent:
     def __init__(self, path, github, runtime):
         self.path, self.github, self.runtime = Path(path), github, runtime
+        self.operation = "repository admission"
         self.state = json.loads(self.path.read_text()) if self.path.exists() else {
             "version": 1, "phase": "uninitialized", "current": None, "previous": None,
             "candidate": None, "migration_ledger": {}, "workers": [],
@@ -55,6 +56,7 @@ class Agent:
             raise ValueError("Bootstrap baseline is required before automatic deployment")
         if phase != "healthy":
             return self.recover()
+        self.operation = "release admission"
         head = self.github.head()
         self.save("healthy", main_sha=head)
         if head == self.state["current"]["sha"]:
@@ -62,7 +64,9 @@ class Agent:
         release = self.github.release(head)
         if release is None:  # Failed, pending or missing CI is never deployable.
             return
+        self.operation = "migration compatibility"
         ledger = self.github.compatible(self.state["current"]["sha"], head, self.state["migration_ledger"])
+        self.operation = "image preparation"
         self.runtime.prepare(release)
         if self.github.head() != head:
             return  # A newer merge superseded this candidate before any writes.
@@ -70,6 +74,7 @@ class Agent:
         self.save("deploying", candidate=release, workers=workers,
                   migration_ledger=self.state["migration_ledger"] | ledger,
                   recovery_commit=None, recovery_parent=None)
+        self.operation = "deployment"
         try:
             self.runtime.quiesce(workers)
             backup = self.runtime.backup(self.state["current"])
@@ -90,18 +95,21 @@ class Agent:
         old, workers = self.state["current"], self.state["workers"]
         if not old:
             raise ValueError("No known good release: operator recovery required")
+        self.operation = "local recovery"
+        restored_phases = {"reverted_runtime", "reverting_main", "awaiting_recovery_ci"}
         # Always re-probe before touching Git, even if a prior attempt restored it.
-        if self.state["phase"] == "awaiting_recovery_ci":
+        if self.state["phase"] in restored_phases:
             try:
                 self.runtime.health(old, workers)
             except Exception:
                 self.save("recovering")
-        if self.state["phase"] != "awaiting_recovery_ci":
+        if self.state["phase"] not in restored_phases:
             self.save("recovering")
             self.runtime.quiesce(workers)
             self.runtime.activate(old, workers)
             self.runtime.health(old, workers)
             self.save("reverted_runtime", running_sha=old["sha"])
+        self.operation = "GitHub recovery"
         head = self.github.head()
         commit = self.state.get("recovery_commit")
         if not commit or (head != self.state.get("recovery_parent") and not self.github.contains(commit, head)):
@@ -120,6 +128,7 @@ class Agent:
             raise ValueError("Recovery commit changed the known good tree")
         # Recovery is exactly the old source tree. Its schema is already compatible;
         # do not reverse migrations or reapply deleted migration files.
+        self.operation = "recovery release"
         self.runtime.prepare(release)
         self.runtime.static(release)
         self.runtime.quiesce(workers)

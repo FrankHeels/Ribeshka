@@ -85,11 +85,14 @@ def validate_release(value, config, run):
 
 
 class GitHub:
-    def __init__(self, config, token):
+    def __init__(self, config, token=None):
         self.config, self.token = config, token
         self.root = f'/repos/{config["repository"]}'
 
     def api(self, path, data=None, method=None, **kwargs):
+        # Local recovery must work before any network/authentication attempt.
+        if self.token is None:
+            self.token = app_token(self.config)
         return request(self.root + path, self.token, data, method, **kwargs)
 
     def head(self):
@@ -232,9 +235,11 @@ class GitHub:
     def report(self, state):
         sha = state.get("main_sha") or state["current"]["sha"]
         healthy = state["phase"] == "healthy" and state["current"]["sha"] == sha
+        blocked = state.get("blocked_reason")
         phase = "awaiting verified release" if state["phase"] == "healthy" and not healthy else state["phase"]
-        description = f'{phase}; running {state["current"]["sha"][:12]}'
-        self.api(f"/statuses/{sha}", {"state": "success" if healthy else "pending",
+        summary = f"blocked: {blocked}" if blocked else phase
+        description = f'{summary[:100]}; running {state["current"]["sha"][:12]}'
+        self.api(f"/statuses/{sha}", {"state": "error" if blocked else "success" if healthy else "pending",
                                     "context": "production", "description": description})
 
     def rules_ready(self):
