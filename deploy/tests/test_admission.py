@@ -11,8 +11,9 @@ CONFIG = {"repository": REPOSITORY, "repository_policy": "private-free",
           "rollback_bot_login": "fishsite-rollback-frankheels[bot]"}
 PR = {"number": 2, "state": "closed", "merged_at": "2026-10-25T20:00:00Z",
       "merge_commit_sha": SHA, "base": {"ref": "main", "repo": {"full_name": REPOSITORY}},
-      "head": {"sha": HEAD, "repo": {"full_name": REPOSITORY}}}
+      "head": {"sha": HEAD, "ref": "codex/feature", "repo": {"full_name": REPOSITORY}}}
 RUN = {"id": 20, "run_attempt": 1, "head_sha": HEAD, "event": "pull_request",
+       "head_branch": "codex/feature",
        "status": "completed", "conclusion": "success", "head_repository": {"full_name": REPOSITORY},
        "pull_requests": [{"number": 2, "head": {"sha": HEAD}, "base": {"ref": "main"}}]}
 
@@ -47,13 +48,19 @@ class AdmissionTests(unittest.TestCase):
                 self.assertFalse(self.admitted())
 
     def test_ci_for_wrong_head_event_repo_or_pull_request_is_rejected(self):
-        for changes in ({"head_sha": GOOD}, {"event": "push"}, {"pull_requests": []},
+        for changes in ({"head_sha": GOOD}, {"event": "push"}, {"head_branch": "other"},
                         {"head_repository": {"full_name": "other/repo"}},
                         {"pull_requests": [{"number": 3, "head": {"sha": HEAD}, "base": {"ref": "main"}}]},
                         {"conclusion": "failure"}, {"status": "in_progress"}):
             with self.subTest(changes=changes):
                 self.runs = [RUN | changes]
                 self.assertFalse(self.admitted())
+
+    def test_github_omits_run_pull_links_after_merge_but_keeps_exact_head_identity(self):
+        self.runs = [RUN | {"pull_requests": []}]
+        self.assertTrue(self.admitted())
+        self.runs = [RUN | {"pull_requests": [], "head_branch": "other"}]
+        self.assertFalse(self.admitted())
 
     def test_newer_failed_rerun_invalidates_old_pr_success(self):
         self.runs = [RUN, RUN | {"run_attempt": 2, "conclusion": "failure"}]

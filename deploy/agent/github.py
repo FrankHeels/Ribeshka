@@ -122,10 +122,14 @@ class GitHub:
         if not SHA.fullmatch(head) or not pull["head"].get("repo"):
             return False
         runs = self.api(f"/actions/workflows/ci.yml/runs?event=pull_request&head_sha={head}&per_page=100")["workflow_runs"]
+        # GitHub clears run.pull_requests after merge. Bind to the immutable head
+        # SHA plus source repository/branch retained by the merged PR and CI run.
         runs = [r for r in runs if r["event"] == "pull_request" and r["head_sha"] == head
+                and r.get("head_branch") == pull["head"]["ref"]
                 and r["head_repository"]["full_name"] == pull["head"]["repo"]["full_name"]
-                and any(p["number"] == pull["number"] and p["head"]["sha"] == head
-                        and p["base"]["ref"] == "main" for p in r.get("pull_requests", []))]
+                and (not r.get("pull_requests") or any(
+                    p["number"] == pull["number"] and p["head"]["sha"] == head
+                    and p["base"]["ref"] == "main" for p in r["pull_requests"]))]
         if not runs:
             return False
         run = max(runs, key=lambda r: (r["id"], r["run_attempt"]))
