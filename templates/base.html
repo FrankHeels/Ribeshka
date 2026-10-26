@@ -9,7 +9,7 @@
     <meta name="google-site-verification" content="xF1HdCWZu_6l8QsClMwQGW1I5kLJ2JVJsci5YJSZP5s" />
     <meta name="description" content="{{ meta_description|default:'Ассортимент рыбной продукции и информация о способах заказа.' }}">
     {% if meta_robots %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
-    {% if canonical_url and not meta_robots %}<link rel="canonical" href="{{ canonical_url }}">{% endif %}
+    {% if canonical_url and "noindex" not in meta_robots|default:""|lower %}<link rel="canonical" href="{{ canonical_url }}">{% endif %}
     <title>{% if seo_title %}{{ seo_title }}{% elif page_title and page_title != "Рыбная продукция" %}{{ page_title }} — Калининградская рыбёшка{% else %}Калининградская рыбёшка{% endif %}</title>
     <link rel="icon" type="image/png" href="{% static 'img/brand-logo.png' %}">
     <link rel="preload" href="{% static 'fonts/cormorant-garamond-normal-cyrillic.woff2' %}" as="font" type="font/woff2" crossorigin>
