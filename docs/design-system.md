@@ -15,6 +15,7 @@
 - Главные фоновые текстуры: `smoked-walnut.webp` и `roasted-oak.webp`. Промпты и пары «исходник PNG / production WebP» находятся в [`design-reference/dark-wood-generation.md`](design-reference/dark-wood-generation.md).
 - Фон бумажной записки — активный декоративный ассет; полный промпт, PNG-источник и WebP указаны в [`design-reference/shop-note-generation.md`](design-reference/shop-note-generation.md). Сам текст остаётся HTML.
 - Контактные и социальные SVG/PNG и параметры генерации описаны в [`design-reference/social-icons-generation.md`](design-reference/social-icons-generation.md); полный набор промптов и параметров Vectorize хранится в соседнем JSON.
+- Тематический рыбный натюрморт страницы «О компании» — `static/img/about/seafood-table.webp`; происхождение и полный промпт — в [описании ассета](design-reference/about-image-generation.md).
 - Если меняется семейство шрифта или лицензия, сверьтесь с [`static/fonts/README.md`](../static/fonts/README.md) и самими файлами лицензий.
 
 ## Типографика и компоновка

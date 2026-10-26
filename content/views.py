@@ -12,12 +12,12 @@ from .models import ConsentRevision, ContentPage, HomepageRecommendation
 PAGE_DEFAULTS = {
     ContentPage.Key.ABOUT: (
         "О компании",
-        "Сведения о компании будут добавлены после получения подтверждённых материалов.",
+        "Калининградская Рыбёшка: копчёная, вяленая и свежемороженая рыба, внимание к качеству и личный подход к каждому заказу.",
         "Информация о компании ещё не предоставлена заказчиком.",
     ),
     ContentPage.Key.DELIVERY: (
         "Доставка и самовывоз",
-        "Способ получения и согласование условий доставки.",
+        "Доставка рыбной продукции своими курьерами с понедельника по пятницу. Зоны и ориентировочная стоимость доставки по Калининграду и Гурьевску, самовывоз по согласованию.",
         "Доступны доставка и самовывоз. Стоимость и срок доставки продавец согласует после заявки. Подробные условия ещё не предоставлены заказчиком.",
     ),
     ContentPage.Key.CONTACTS: (
@@ -107,7 +107,14 @@ def _page(request, *, key, title, description, notice, template="content/page.ht
 
 def about(request):
     title, description, notice = PAGE_DEFAULTS[ContentPage.Key.ABOUT]
-    return _page(request, key=ContentPage.Key.ABOUT, title=title, description=description, notice=notice)
+    return _page(
+        request,
+        key=ContentPage.Key.ABOUT,
+        title=title,
+        description=description,
+        notice=notice,
+        template="content/about.html",
+    )
 
 
 def delivery(request):

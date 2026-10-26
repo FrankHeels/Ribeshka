@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+  <header class="page-heading page-heading-narrow">
+    <p class="section-kicker">Калининградская Рыбёшка</p>
+    <h1>{{ page_title }}</h1>
+    {% if page_body %}
+      <div class="page-lead rich-copy">{{ page_body|linebreaks }}</div>
+    {% else %}
+      <p>Хорошая рыба собирает за столом. Мы помогаем найти ту самую — для домашнего ужина, встречи с друзьями или вашего бизнеса.</p>
+    {% endif %}
+  </header>
+
+  <section class="company-story" aria-labelledby="company-assortment-title">
+    <figure class="company-story-image">
+      <img src="{% static 'img/about/seafood-table.webp' %}" width="1536" height="1024" alt="Копчёная скумбрия и ломтики солёной красной рыбы на деревянном столе" loading="lazy" decoding="async">
+    </figure>
+    <div class="company-story-copy">
+      <h2 id="company-assortment-title">На каждый день.<br>И к особому столу.</h2>
+      <p>Дымный аромат копчёной рыбы, насыщенный вкус вяленой, свежемороженая рыба для любимых рецептов — в «Калининградской Рыбёшке» есть из чего выбрать.</p>
+      <p>Для нас качество начинается с внимания к продукту. Нам важно, чтобы рыба радовала вкусом, а вы с удовольствием возвращались за любимыми сортами и пробовали новое.</p>
+      <a class="text-link" href="{% url 'home' %}#assortment">Выбрать рыбу в ассортименте</a>
+    </div>
+  </section>
+
+  <section class="company-service" aria-labelledby="company-service-title">
+    <h2 id="company-service-title">С вниманием к рыбе<br>и к вам</h2>
+    <div class="company-service-copy">
+      <p>За каждой заявкой — живое общение. Подскажем, что выбрать, уточним наличие и нужный объём, согласуем стоимость и удобный способ получения. Вы будете знать все условия до подтверждения заказа.</p>
+      <p>Покупаете для магазина, кафе или ресторана? Обсудим оптовое сотрудничество и познакомим с прайс-листом. Поможем подобрать продукцию под ваши задачи — с тем же вниманием к качеству и деталям.</p>
+      <div class="content-actions">
+        <a class="button button-primary" href="{% url 'inquiries:wholesale' %}">Обсудить оптовую поставку</a>
+        <a class="text-link" href="{% url 'content:delivery' %}">Условия доставки</a>
+      </div>
+    </div>
+  </section>
+{% endblock %}

@@ -376,6 +376,36 @@ a.home-link-panel:hover { color: var(--color-accent); }
 .delivery-map-controls .button { min-width: 48px; min-height: 48px; padding: .5rem 1rem; }
 .delivery-map-controls [data-map-zoom] { font-size: 1.5rem; }
 .delivery-map-note { max-width: 78ch; margin-top: 1rem; color: var(--color-text-muted); font-size: var(--text-small); }
+.delivery-price-caption { margin-bottom: .75rem; color: var(--color-text-muted); font-size: var(--text-small); }
+.delivery-zone-price { display: inline-block; margin-left: .5rem; color: var(--color-brass); font-weight: 600; white-space: nowrap; }
+.delivery-care-copy { max-width: 65ch; margin: 1.5rem 0 0; }
+
+/* Company and wholesale copy use the same readable editorial rhythm as the catalogue. */
+.company-story, .company-service, .wholesale-layout, .delivery-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(2rem, 5vw, 4.5rem); }
+.company-story { align-items: center; }
+.company-story-image { min-width: 0; margin: 0; }
+.company-story-image img { width: 100%; height: auto; border-radius: var(--radius); }
+.company-story-copy, .company-service-copy, .wholesale-intro { min-width: 0; }
+.company-story h2, .company-service h2, .wholesale-intro h2 { margin-bottom: 1.5rem; font-size: clamp(2.5rem, 4vw, 3.5rem); }
+.company-story-copy p, .company-service-copy p, .wholesale-intro p { max-width: 54ch; }
+.company-service { margin-top: clamp(2.5rem, 6vw, 5rem); padding-top: clamp(2rem, 4vw, 3.5rem); border-top: 1px solid var(--color-line); }
+.content-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.5rem; margin-top: 1.5rem; }
+.wholesale-layout { align-items: start; }
+.wholesale-intro { padding-block: 1.5rem; }
+.wholesale-intro h3 { margin: 2rem 0 1rem; font-size: 2rem; }
+.wholesale-form { min-width: 0; padding: clamp(1.25rem, 3vw, 2rem); }
+.wholesale-form h2 { font-size: clamp(2rem, 3vw, 2.5rem); }
+.wholesale-form-note { margin-bottom: 1.5rem; color: var(--color-text-muted); }
+.delivery-details { max-width: 65rem; gap: 1.5rem 3rem; }
+.delivery-details h2 { margin-bottom: 1rem; font-size: 2.25rem; }
+.delivery-details p { margin-bottom: 0; }
+@media (max-width: 900px) {
+  .company-story, .company-service, .wholesale-layout, .delivery-details { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .company-story-image { max-width: 42rem; }
+  .company-service h2 { margin-bottom: 0; }
+  .wholesale-intro { padding-block: 0; }
+  .wholesale-form { width: 100%; }
+}
 
 /* Shared walnut footer. */
 .site-footer { margin-top: auto; border-top: 1px solid var(--color-line); background: var(--color-surface); }
