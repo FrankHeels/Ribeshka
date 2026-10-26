@@ -9,8 +9,10 @@
 | `/catalog/products/<slug>/` | Карточка опубликованного товара и выбор желаемого веса | [`cart.md`](cart.md), `catalog.views.product`, `templates/catalog/product.html` |
 | `/cart/` | Сессионная корзина и розничная форма заявки | [`cart.md`](cart.md), [`public-forms.md`](public-forms.md), [`../frontend-contract.md`](../frontend-contract.md) |
 | `/checkout/` | GET перенаправляет к форме в корзине; POST — совместимый путь отправки розничной заявки | [`public-forms.md`](public-forms.md), `orders.views.checkout` |
-| `/wholesale/` | Отдельная форма оптового запроса | [`public-forms.md`](public-forms.md), `inquiries.views.wholesale` |
-| `/about/`, `/delivery/`, `/contacts/` | Информационные страницы; delivery и contacts дополнены картой с текстовым запасным вариантом | [`../delivery-map.md`](../delivery-map.md), [`../frontend-contract.md`](../frontend-contract.md) |
+| `/wholesale/` | Условия сотрудничества, пояснение о личном ответе с прайс-листом и отдельная контактная форма | [`public-forms.md`](public-forms.md), [`../frontend-contract.md`](../frontend-contract.md), `inquiries.views.wholesale` |
+| `/about/` | Текст об ассортименте, качестве и сервисе, тематическое изображение, переходы в ассортимент и опт; редактируемый текст страницы сохраняется во вступлении | [`../frontend-contract.md`](../frontend-contract.md), `content.views.about`, `templates/content/about.html` |
+| `/delivery/` | Условия доставки и самовывоза, карта с ориентировочными ценами в легенде и текстовым запасным вариантом | [`../delivery-map.md`](../delivery-map.md), [`../frontend-contract.md`](../frontend-contract.md) |
+| `/contacts/` | Контактные данные и карта с текстовым запасным вариантом | [`../delivery-map.md`](../delivery-map.md), [`../frontend-contract.md`](../frontend-contract.md) |
 | `/privacy/`, `/personal-data-consent/`, `/personal-data-consent/revisions/<revision_id>/`, `/yandex-metrica-consent/` | Юридические тексты; архивный маршрут показывает выбранную редакцию согласия | [`../frontend-contract.md`](../frontend-contract.md), [`public-forms.md`](public-forms.md), [`../legal/personal-data-policy.md`](../legal/personal-data-policy.md), [`../legal/personal-data-consent.md`](../legal/personal-data-consent.md), [`../legal/yandex-metrica-consent.md`](../legal/yandex-metrica-consent.md) |
 | `/checkout/success/<uuid>/`, `/wholesale/success/<uuid>/` | Общие страницы результата без номера или персональных данных; запрещены к индексации и кэшированию | [`public-forms.md`](public-forms.md), `orders.views.success`, `inquiries.views.success` |
 

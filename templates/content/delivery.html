@@ -1,7 +1,26 @@
-{% extends "content/page.html" %}
+{% extends "base.html" %}
 {% load static %}
 
-{% block after_content %}
+{% block content %}
+  <header class="page-heading page-heading-narrow">
+    <p class="section-kicker">От нашего прилавка к вашему столу</p>
+    <h1>{{ page_title }}</h1>
+    {% if page_body %}
+      <div class="page-lead rich-copy">{{ page_body|linebreaks }}</div>
+    {% else %}
+      <p>Выбирайте любимую рыбу, а удобный способ получения мы согласуем с вами. Привезём заказ своими курьерами или подготовим к самовывозу.</p>
+    {% endif %}
+  </header>
+  <section class="delivery-details" aria-label="Как получить заказ">
+    <div>
+      <h2>Доставка по будням</h2>
+      <p>Работаем с понедельника по пятницу. При подтверждении заявки уточним адрес, согласуем удобное время и стоимость доставки.</p>
+    </div>
+    <div>
+      <h2>Самовывоз по договорённости</h2>
+      <p>Хотите забрать заказ сами? Сообщите об этом при оформлении — менеджер подтвердит место и время получения. <a href="{% url 'content:contacts' %}">Связаться с нами</a></p>
+    </div>
+  </section>
   <section class="delivery-map-section" aria-labelledby="delivery-map-title" data-delivery-map>
     <div class="delivery-map-heading">
       <div>
@@ -10,10 +29,11 @@
       </div>
       <a class="button button-secondary" href="https://yandex.ru/maps/?ll=20.52955%2C54.72569&amp;z=11" target="_blank" rel="noopener noreferrer">Открыть в Картах <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
     </div>
+    <p class="delivery-price-caption">Ориентировочная стоимость доставки</p>
     <ul class="delivery-map-legend" aria-label="Обозначения зон доставки">
-      <li><span class="delivery-zone-swatch delivery-zone-kaliningrad" aria-hidden="true"></span>Калининград</li>
-      <li><span class="delivery-zone-swatch delivery-zone-outer" aria-hidden="true"></span>Внешняя зона</li>
-      <li><span class="delivery-zone-swatch delivery-zone-guryevsk" aria-hidden="true"></span>Гурьевск</li>
+      <li><span class="delivery-zone-swatch delivery-zone-kaliningrad" aria-hidden="true"></span><span>Калининград <strong class="delivery-zone-price">300 ₽</strong></span></li>
+      <li><span class="delivery-zone-swatch delivery-zone-outer" aria-hidden="true"></span><span>Внешняя зона <strong class="delivery-zone-price">500 ₽</strong></span></li>
+      <li><span class="delivery-zone-swatch delivery-zone-guryevsk" aria-hidden="true"></span><span>Гурьевск <strong class="delivery-zone-price">700 ₽</strong></span></li>
     </ul>
     <div class="delivery-map-frame">
       <div id="delivery-map" class="delivery-map-canvas" role="region" aria-label="Карта зон доставки: Калининград, внешняя зона и Гурьевск" aria-describedby="delivery-map-note" hidden></div>
@@ -28,6 +48,7 @@
       <button type="button" class="button button-secondary" data-map-reset>Все зоны</button>
     </div>
     <p id="delivery-map-note" class="delivery-map-note">Границы зон показаны ориентировочно. Стоимость и возможность доставки по вашему адресу подтвердим при согласовании заявки.</p>
+    <p class="delivery-care-copy">Свежая рыба — с заботой до самой двери. Наши курьеры доставляют заказы с понедельника по пятницу, в согласованное с вами время. Бережно относимся к качеству продукции и вашему времени, чтобы покупка радовала с первого кусочка.</p>
   </section>
 {% endblock %}
 
