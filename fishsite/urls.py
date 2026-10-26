@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from content.views import home, not_found, sitemap
+from content.views import home, not_found, robots, sitemap
 from fishsite.health import ready
 
 
@@ -18,6 +18,7 @@ urlpatterns = [
     path("wholesale/", include(("inquiries.urls", "inquiries"), namespace="inquiries")),
     path("", include(("content.urls", "content"), namespace="content")),
     path("sitemap.xml", sitemap, name="sitemap"),
+    path("robots.txt", robots, name="robots"),
 ]
 
 handler404 = not_found

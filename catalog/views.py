@@ -28,6 +28,9 @@ def category(request, slug):
     queryset = queryset.order_by("display_order", "name", "pk")
     page_obj, products = _page_products(request, queryset)
     description = category_obj.description or f"Опубликованные товары категории «{category_obj.name}»."
+    canonical_path = reverse("catalog:category", args=(category_obj.slug,))
+    if page_obj.number > 1:
+        canonical_path += f"?page={page_obj.number}"
 
     return render(
         request,
@@ -36,6 +39,7 @@ def category(request, slug):
             "page_title": category_obj.name,
             "seo_title": category_obj.seo_title or f"{category_obj.name} — Калининградская рыбёшка",
             "meta_description": (category_obj.seo_description or description)[:320],
+            "canonical_url": request.build_absolute_uri(canonical_path),
             "category": category_obj,
             "products": products,
             "page_obj": page_obj,
