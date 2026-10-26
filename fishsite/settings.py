@@ -105,6 +105,7 @@ TEMPLATES = [
                 "catalog.context_processors.navigation_categories",
                 "orders.context_processors.cart_count",
                 "content.context_processors.site_settings_context",
+                "content.context_processors.seo_context",
             ],
         },
     }

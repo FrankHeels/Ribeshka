@@ -1,7 +1,9 @@
 from django.conf import settings
 from django.db.models import Prefetch
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.views.decorators.http import require_safe
 
 from catalog.models import Category, Product
 from .legal_documents import LEGAL_DOCUMENTS, render_legal_document
@@ -227,6 +229,15 @@ def not_found(request, exception=None):
         "errors/404.html",
         {"page_title": "Страница не найдена", "meta_robots": "noindex, nofollow"},
         status=404,
+    )
+
+
+@require_safe
+def robots(request):
+    sitemap_url = request.build_absolute_uri(reverse("sitemap"))
+    return HttpResponse(
+        f"User-agent: *\nAllow: /\n\nSitemap: {sitemap_url}\n",
+        content_type="text/plain; charset=utf-8",
     )
 
 
