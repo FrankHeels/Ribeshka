@@ -3,30 +3,31 @@
 
 {% block body_class %}home-page{% endblock %}
 {% block content %}
-  <section class="home-hero home-screen" aria-labelledby="home-hero-title">
+  <section class="home-hero photo-hero" aria-labelledby="home-hero-title">
+    {% include "partials/hero-photo.html" %}
     <div class="home-hero-grid page-width">
-      <div class="hero-copy reveal-up">
-        <p class="hero-context">Калининградская рыбёшка / розница и опт</p>
-        <h1 id="home-hero-title">{% if home_title %}{{ home_title }}{% else %}Рыбная продукция для вашего стола{% endif %}</h1>
-        <p class="hero-lead">{% if catalog_ready %}Рыба для уютного ужина, праздничного стола и встреч с друзьями. Выбирайте любимые вкусы в «Калининградской рыбёшке» — для себя, семьи или бизнеса.{% else %}Ассортимент готовится к публикации. Здесь появятся категории и актуальные цены.{% endif %}</p>
-        <p class="notice hero-order-note"><strong>Цены на сайте ориентировочные.</strong> Наличие нужного объёма и итоговую стоимость подтвердит менеджер. Заявка не резервирует товар.</p>
+      <div class="hero-copy">
+        <h1 id="home-hero-title">{% if home_title %}{{ home_title }}{% else %}Рыба к вашему столу{% endif %}</h1>
+        <p class="hero-lead">{% if catalog_ready %}Копчёная, вяленая и свежемороженая рыба для вашего стола и бизнеса.{% else %}Ассортимент готовится к публикации. Здесь появятся категории и актуальные цены.{% endif %}</p>
+
         <div class="hero-actions">
           <a class="button button-primary" href="#assortment">Перейти к ассортименту <span class="button-arrow" aria-hidden="true">{% include "partials/arrow-icon.html" with direction="down-right" %}</span></a>
         </div>
+        <p class="notice hero-order-note"><strong>Цены на сайте ориентировочные.</strong> Наличие нужного объёма и итоговую стоимость подтвердит менеджер. Заявка не резервирует товар.</p>
       </div>
-      <ul class="hero-values reveal-up" aria-label="Наши преимущества" role="list">
+
+    </div>
+  </section>
+        <ul class="hero-values page-width" aria-label="Наши преимущества" role="list">
         {% for value in hero_values %}<li class="hero-value">
           <img src="{% static value.icon %}" alt="" aria-hidden="true" width="112" height="112">
           <p>{{ value.text }}</p>
         </li>{% endfor %}
       </ul>
-    </div>
-    <div class="hero-bottom page-width"><span>Рыбная продукция / Калининградская рыбёшка</span><a href="#request-steps">Как проходит заявка <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="down" %}</span></a></div>
-  </section>
 
-  <section id="assortment" class="home-screen home-section home-categories" aria-labelledby="home-categories-title">
+  <section id="assortment" class="home-section home-categories" aria-labelledby="home-categories-title">
     <div class="section-heading">
-      <div><p class="section-kicker">Ассортимент</p><h2 id="home-categories-title">Подберите по вкусу</h2></div>
+      <div><h2 id="home-categories-title">Подберите рыбу по вкусу</h2></div>
     </div>
     {% if categories %}
       <ul class="category-grid">
@@ -54,9 +55,9 @@
     {% endif %}
   </section>
 
-  <section class="home-screen home-section home-products" aria-labelledby="home-products-title">
+  <section class="home-section home-products" aria-labelledby="home-products-title">
     <div class="section-heading">
-      <div><p class="section-kicker">Продукция</p><h2 id="home-products-title">{% if featured_products %}Рекомендуемые товары{% else %}Скоро в каталоге{% endif %}</h2></div>
+      <div><h2 id="home-products-title">{% if featured_products %}Рекомендуемые товары{% else %}Скоро в каталоге{% endif %}</h2></div>
       <a class="text-link" href="#assortment">Все категории <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
     </div>
     {% if featured_products %}
@@ -66,15 +67,15 @@
     {% else %}
       <div class="empty-state-feature" role="status">
         <div class="empty-state-art" aria-hidden="true"><img src="{% static 'img/hero-current.svg' %}" alt="" width="820" height="760" loading="lazy"></div>
-        <div><p class="section-kicker">Ассортимент в подготовке</p><h3>Товары появятся здесь</h3><p>Ассортимент, цены и фотографии будут опубликованы после подтверждения.</p></div>
+        <div><h3>Ассортимент в подготовке</h3><p>Ассортимент, цены и фотографии будут опубликованы после подтверждения.</p></div>
       </div>
     {% endif %}
   </section>
 
-  <section class="home-screen home-section home-about" aria-labelledby="home-about-title">
+  <section class="home-section home-about cream-panel" aria-labelledby="home-about-title">
     <div class="home-about-grid page-width">
       <div class="home-about-intro">
-        <p class="section-kicker">О компании</p><h2 id="home-about-title">Познакомьтесь с Рыбёшкой</h2>
+        <h2 id="home-about-title">Калининградская рыбёшка</h2>
         <div class="home-about-body">
           {% if about_summary %}<div>{{ about_summary|linebreaks }}</div>{% else %}<p>«Калининградская рыбёшка» предлагает копчёную, вяленую и свежемороженую рыбу в розницу и оптом. Здесь легко подобрать угощение к столу или продукцию для своего бизнеса.</p>{% endif %}
           <a class="text-link" href="{% url 'content:about' %}">О компании <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
@@ -84,8 +85,8 @@
     </div>
   </section>
 
-  <section id="request-steps" class="home-screen home-section request-steps" aria-labelledby="request-steps-title">
-    <div class="section-heading"><div><p class="section-kicker">Ваш заказ</p><h2 id="request-steps-title">Как проходит заявка</h2></div><a class="text-link" href="{% url 'inquiries:wholesale' %}">Оптовый запрос <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a></div>
+  <section id="request-steps" class="home-section request-steps" aria-labelledby="request-steps-title">
+    <div class="section-heading"><div><h2 id="request-steps-title">Как проходит заявка</h2></div><a class="text-link" href="{% url 'inquiries:wholesale' %}">Оптовый запрос <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a></div>
     <ol class="steps-list">
       <li><span class="step-number">01</span><h3>Выберите товары</h3><p>Укажите желаемый вес в килограммах.</p></li>
       <li><span class="step-number">02</span><h3>Оставьте контакты</h3><p>Выберите доставку или самовывоз и отправьте заявку.</p></li>
@@ -93,18 +94,13 @@
     </ol>
   </section>
 
-  <section class="home-screen home-section home-links" aria-label="Получение и связь">
+  <section class="home-section home-links" aria-label="Получение и связь">
     <div class="home-links-grid">
-      <a class="home-link-panel" href="{% url 'content:delivery' %}"><span class="home-link-kicker">Получение</span><strong>Доставка и самовывоз</strong><span class="home-link-copy">Стоимость и срок доставки согласуются после заявки</span><span class="home-link-arrow" aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
+      <a class="home-link-panel" href="{% url 'content:delivery' %}"><strong>Доставка и самовывоз</strong><span class="home-link-copy">Стоимость и срок доставки согласуются после заявки</span><span class="home-link-arrow" aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
       <div class="home-link-panel home-contact-panel">
-        <span class="home-link-kicker">Связь</span>
         <a class="home-contact-title" href="{% url 'content:contacts' %}"><strong>Контакты</strong><span class="home-link-arrow" aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
         {% include "partials/site-links.html" %}
       </div>
     </div>
   </section>
-{% endblock %}
-
-{% block scripts %}
-  <script src="{% static 'js/home-scroll.js' %}?v=2026-10-11-1" defer></script>
 {% endblock %}

@@ -1,9 +1,12 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block body_class %}delivery-page photo-page{% endblock %}
+{% block breadcrumbs %}{% endblock %}
 {% block content %}
-  <header class="page-heading page-heading-narrow">
-    <p class="section-kicker">От нашего прилавка к вашему столу</p>
+  <header class="page-heading photo-hero">
+    {% include "partials/hero-photo.html" %}
+    {% include "partials/breadcrumbs.html" %}
     <h1>{{ page_title }}</h1>
     {% if page_body %}
       <div class="page-lead rich-copy">{{ page_body|linebreaks }}</div>
@@ -21,10 +24,9 @@
       <p>Хотите забрать заказ сами? Сообщите об этом при оформлении — менеджер подтвердит место и время получения. <a href="{% url 'content:contacts' %}">Связаться с нами</a></p>
     </div>
   </section>
-  <section class="delivery-map-section" aria-labelledby="delivery-map-title" data-delivery-map>
+  <section class="delivery-map-section cream-panel" aria-labelledby="delivery-map-title" data-delivery-map>
     <div class="delivery-map-heading">
       <div>
-        <p class="section-kicker">География доставки</p>
         <h2 id="delivery-map-title">Зоны доставки</h2>
       </div>
       <a class="button button-secondary" href="https://yandex.ru/maps/?ll=20.52955%2C54.72569&amp;z=11" target="_blank" rel="noopener noreferrer">Открыть в Картах <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
@@ -45,7 +47,7 @@
     <div class="delivery-map-controls" data-map-controls hidden role="group" aria-label="Управление картой">
       <button type="button" class="button button-secondary" data-map-zoom="1" aria-label="Приблизить карту">+</button>
       <button type="button" class="button button-secondary" data-map-zoom="-1" aria-label="Отдалить карту">−</button>
-      <button type="button" class="button button-secondary" data-map-reset>Все зоны</button>
+      <button type="button" class="button button-secondary" data-map-reset aria-label="Показать все зоны доставки" title="Показать все зоны доставки">{% include "partials/ui-icon.html" with name="fit-map" %}</button>
     </div>
     <p id="delivery-map-note" class="delivery-map-note">Границы зон показаны ориентировочно. Стоимость и возможность доставки по вашему адресу подтвердим при согласовании заявки.</p>
     <p class="delivery-care-copy">Свежая рыба — с заботой до самой двери. Наши курьеры доставляют заказы с понедельника по пятницу, в согласованное с вами время. Бережно относимся к качеству продукции и вашему времени, чтобы покупка радовала с первого кусочка.</p>

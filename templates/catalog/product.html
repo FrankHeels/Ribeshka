@@ -1,23 +1,21 @@
 {% extends "base.html" %}
 {% load static l10n %}
+{% block body_class %}product-page{% endblock %}
 {% block content %}
   {% include "partials/error-summary.html" %}
   {% if cart_issues %}<div class="notice notice-error" role="alert"><h2>Проверьте состав корзины</h2><p>{{ cart_issues_message }}</p></div>{% endif %}
   {% if preview_mode %}<div class="backoffice-preview-banner" role="status">Предпросмотр скрытого товара. Эта страница видна только сотруднику сайта и не индексируется.</div>{% endif %}
   <article class="product-detail">
+    <header class="product-title"><h1>{{ product.name }}</h1></header>
     <div class="product-gallery" aria-label="Фотографии товара">
       {% if product.photos %}
-        {% for photo in product.photos %}<figure>{% if photo.url %}<img src="{{ photo.url }}" alt="{{ photo.alt_text|default:product.name }}" {% if forloop.first %}fetchpriority="high"{% else %}loading="lazy"{% endif %} decoding="async" width="960" height="1200">{% else %}<span class="image-placeholder" role="img" aria-label="Фотография товара не добавлена"><span>Фотография не добавлена</span></span>{% endif %}</figure>{% endfor %}
+        {% for photo in product.photos %}<figure>{% if photo.url %}<a href="{{ photo.url }}" target="_blank" rel="noopener noreferrer" aria-label="Открыть фотографию: {{ photo.alt_text|default:product.name }} (новая вкладка)"><img src="{{ photo.url }}" alt="{{ photo.alt_text|default:product.name }}" {% if forloop.first %}fetchpriority="high"{% else %}loading="lazy"{% endif %} decoding="async" width="960" height="1200"></a>{% else %}<span class="image-placeholder" role="img" aria-label="Фотография товара не добавлена"><span>Фотография не добавлена</span></span>{% endif %}</figure>{% endfor %}
       {% else %}<div class="image-placeholder product-placeholder" role="img" aria-label="Фотография товара не добавлена"><span>Фотография не добавлена</span></div>{% endif %}
     </div>
     <div class="product-detail-copy">
-      <p class="section-kicker">Рыбная продукция</p>
-      <h1>{{ product.name }}</h1>
       {% if product.short_description %}<p class="product-intro">{{ product.short_description }}</p>{% endif %}
-      {% if product.description %}<div class="rich-copy">{{ product.description|linebreaks }}</div>{% endif %}
-      {% if product.price_per_kg %}<p class="detail-price">{{ product.price_per_kg|floatformat:2 }} ₽ <span>за кг</span></p>{% endif %}
+      {% if product.price_per_kg %}<p class="price-caption">Ориентировочная цена</p><p class="detail-price">{{ product.price_per_kg|floatformat:2 }} ₽ <span>за кг</span></p>{% endif %}
       {% if estimated_total %}<p class="estimate-line">Предварительная сумма: <strong>{{ estimated_total|floatformat:2 }} ₽</strong></p>{% endif %}
-      <p class="notice">Актуальную цену и наличие нужного объёма подтвердит менеджер. Выбранный вес — ваше пожелание к заявке.</p>
       <form class="product-order-form" method="post" action="{% url 'orders:cart' %}">
         {% csrf_token %}
         <fieldset {% if not forms_enabled %}disabled{% endif %}>
@@ -40,7 +38,13 @@
         </fieldset>
         {% if not forms_enabled %}<p class="form-status" role="status">{% if preview_mode %}Добавление в корзину недоступно в предпросмотре.{% else %}Добавление в корзину ещё не подключено.{% endif %}</p>{% endif %}
       </form>
+      <p class="notice">Актуальную цену и наличие нужного объёма подтвердит менеджер. Выбранный вес — ваше пожелание к заявке.</p>
+      <a class="product-delivery text-link" href="{% url 'content:delivery' %}">Доставка и самовывоз по согласованию</a>
     </div>
   </article>
+  <section class="product-description cream-panel" aria-labelledby="product-description-title">
+    <h2 id="product-description-title">О продукте</h2>
+    {% if product.description %}<div class="rich-copy">{{ product.description|linebreaks }}</div>{% elif product.short_description %}<p>{{ product.short_description }}</p>{% else %}<p>Подробности о продукте уточняйте у менеджера при подтверждении заявки.</p>{% endif %}
+  </section>
 {% endblock %}
 {% block scripts %}<script src="{% static 'js/product-weight.js' %}?v=2026-10-02-1" defer></script>{% endblock %}

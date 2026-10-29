@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load static l10n %}
+{% block body_class %}cart-page{% endblock %}
 {% block content %}
   <header class="page-heading">
-    <p class="section-kicker">Розничная заявка</p>
     <h1>Корзина</h1>
     <p>Укажите желаемый вес в килограммах. Суммы предварительные.</p>
   </header>
@@ -14,17 +14,17 @@
     </div>
     <div data-cart-body>
       {% if cart_items %}
-        <div class="cart-table-wrap">
+        <div class="cart-layout">
+        <div class="cart-products"><div class="cart-table-wrap">
           <table class="cart-table">
-            <thead><tr><th scope="col">Товар</th><th scope="col">Цена за кг</th><th scope="col">Вес, кг</th><th scope="col">Сумма</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr></thead>
+            <thead><tr><th scope="col">Товар</th><th scope="col">Вес, кг</th><th scope="col">Сумма</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr></thead>
             <tbody>
               {% for item in cart_items %}
                 <tr data-cart-line="{{ item.key }}">
-                  <td data-label="Товар"><a href="{% url 'catalog:product' item.product.slug %}">{{ item.product.name }}</a></td>
-                  <td data-label="Цена за кг" data-cart-price>{{ item.price_per_kg|floatformat:2 }} ₽</td>
+                  <td data-label="Товар"><a class="cart-product-photo" aria-label="{{ item.product.name }}" href="{% url 'catalog:product' item.product.slug %}">{% if item.product.primary_photo %}<img src="{{ item.product.primary_photo.url }}" alt="" width="160" height="160" loading="lazy">{% else %}<span class="image-placeholder" aria-hidden="true">Нет фото</span>{% endif %}</a><a href="{% url 'catalog:product' item.product.slug %}">{{ item.product.name }}</a><span data-cart-price>{{ item.price_per_kg|floatformat:2 }} ₽ / кг</span></td>
                   <td data-label="Вес, кг">
                     <form id="cart-item-{{ item.key }}" method="post" action="{% url 'orders:cart' %}">{% csrf_token %}<input type="hidden" name="cart_line_id" value="{{ item.key }}"><input type="hidden" name="preserve_confirmation" value="{% if price_changed %}1{% else %}0{% endif %}"></form>
-                    <label class="visually-hidden" for="weight-{{ item.key }}">Вес: {{ item.product.name }}, кг</label>
+                    <label class="cart-weight-label" for="weight-{{ item.key }}">Желаемый вес, кг<span class="visually-hidden">: {{ item.product.name }}</span></label>
                     <div class="cart-weight-control">
                       <button class="cart-stepper" type="button" data-cart-step="-1" aria-label="Уменьшить вес на 1 кг" aria-controls="weight-{{ item.key }}" hidden {% if not forms_enabled %}disabled{% endif %}>
                         <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 10h12" /></svg>
@@ -47,16 +47,22 @@
             </tbody>
           </table>
         </div>
-        <div class="cart-summary">
+        <a class="text-link cart-continue" href="{% url 'home' %}#assortment">Продолжить выбор</a>
+        </div>
+        <aside class="cart-summary cream-panel" aria-labelledby="cart-summary-title">
+          <h2 id="cart-summary-title">Ваш заказ</h2>
+          <p data-cart-meta>Позиций: {{ cart_items|length }}{% if cart_weight != None %}<span data-cart-weight-summary>Желаемый вес: {{ cart_weight|floatformat:0 }} кг</span>{% endif %}</p>
           <p data-cart-total data-cart-total-available="{% if cart_total_is_valid %}true{% else %}false{% endif %}"{% if not cart_total_is_valid %} class="is-unavailable"{% endif %}>
             <span>Предварительная сумма</span>
             <strong class="cart-total-value" data-cart-total-value{% if not cart_total_is_valid %} aria-hidden="true"{% endif %}>{% if cart_total_is_valid %}{{ cart_total|floatformat:2 }} ₽{% else %}—{% endif %}</strong>
             <span class="visually-hidden" data-cart-total-status role="status" aria-live="polite">{% if not cart_total_is_valid %}Предварительная сумма недоступна. Проверьте вес позиций.{% endif %}</span>
           </p>
+          <p class="cart-delivery-note">Доставка — по согласованию</p>
           <p class="muted-copy">Наличие, фактический вес, стоимость доставки и окончательную сумму подтвердит менеджер.</p>
+        </aside>
         </div>
 
-        <section class="form-panel" id="request" aria-labelledby="retail-request-title">
+        <section class="form-panel cream-panel retail-panel" id="request" aria-labelledby="retail-request-title">
           <h2 id="retail-request-title">Контакты и получение</h2>
           <noscript><p class="field-help">Без JavaScript сначала сохраните вес каждой изменённой позиции или удалите ненужные позиции кнопками в таблице.</p></noscript>
           {% include "partials/error-summary.html" %}
@@ -80,6 +86,7 @@
             <input type="hidden" name="submission_key" value="{{ submission.submission_key }}">
             <input type="hidden" name="submission_token" value="{{ submission.submission_token }}">
             <div class="visually-hidden" aria-hidden="true"><label for="id_website">Оставьте это поле пустым</label><input id="id_website" name="website" autocomplete="off" tabindex="-1"></div>
+            <div class="retail-fields"><div class="retail-contacts">
             <div class="field">
               <label for="id_name">Имя <span aria-hidden="true">*</span></label>
               <input id="id_name" name="name" maxlength="160" autocomplete="name" required value="{{ values.name|default_if_none:'' }}" {% if field_errors.name %}aria-invalid="true" aria-describedby="name-error"{% endif %}>
@@ -95,6 +102,7 @@
               <input id="id_email" name="email" type="email" maxlength="254" autocomplete="email" value="{{ values.email|default_if_none:'' }}" {% if field_errors.email %}aria-invalid="true" aria-describedby="email-error"{% endif %}>
               {% if field_errors.email %}<p class="field-error" id="email-error">{{ field_errors.email.0 }}</p>{% endif %}
             </div>
+            </div><div class="retail-delivery">
             <fieldset class="nested-fieldset delivery-method">
               <legend>Способ получения <span aria-hidden="true">*</span></legend>
               <label class="choice"><input id="id_pickup_method" type="radio" name="pickup_method" value="delivery" required {% if values.pickup_method == "delivery" or not values.pickup_method %}checked{% endif %} {% if field_errors.pickup_method %}aria-invalid="true" aria-describedby="pickup-method-error"{% endif %}> <span>Доставка</span></label>
@@ -103,22 +111,27 @@
             </fieldset>
             <div class="field delivery-address" data-delivery-address>
               <label for="id_address">Адрес доставки <span class="field-hint">нужен при доставке</span></label>
-              <textarea id="id_address" name="address" maxlength="255" rows="3" autocomplete="street-address" aria-describedby="{% if field_errors.address %}address-help address-error{% else %}address-help{% endif %}" {% if field_errors.address %}aria-invalid="true"{% endif %}>{{ values.address|default_if_none:'' }}</textarea>
+              <textarea id="id_address" name="address" maxlength="255" rows="2" autocomplete="street-address" aria-describedby="{% if field_errors.address %}address-help address-error{% else %}address-help{% endif %}" {% if field_errors.address %}aria-invalid="true"{% endif %}>{{ values.address|default_if_none:'' }}</textarea>
               <p class="field-help" id="address-help">Для самовывоза оставьте это поле пустым. Адрес и условия доставки подтвердит продавец.</p>
               {% if field_errors.address %}<p class="field-error" id="address-error">{{ field_errors.address.0 }}</p>{% endif %}
             </div>
             <div class="field">
               <label for="id_comment">Комментарий <span class="field-hint">необязательно</span></label>
-              <textarea id="id_comment" name="comment" maxlength="3000" rows="3" {% if field_errors.comment %}aria-invalid="true" aria-describedby="comment-error"{% endif %}>{{ values.comment|default_if_none:'' }}</textarea>
+              <textarea id="id_comment" name="comment" maxlength="3000" rows="2" {% if field_errors.comment %}aria-invalid="true" aria-describedby="comment-error"{% endif %}>{{ values.comment|default_if_none:'' }}</textarea>
               {% if field_errors.comment %}<p class="field-error" id="comment-error">{{ field_errors.comment.0 }}</p>{% endif %}
             </div>
-            <label class="choice consent-choice">
-              <input id="id_consent" type="checkbox" name="consent" value="yes" required {% if values.consent %}checked{% endif %} {% if field_errors.consent %}aria-invalid="true" aria-describedby="consent-error"{% endif %}>
-              <span>Даю <a href="{{ submission.consent_url }}">согласие на обработку персональных данных</a> для рассмотрения заявки.</span>
-            </label>
-            <p class="field-hint">Порядок обработки данных описан в <a href="{% url 'content:privacy' %}">Политике обработки персональных данных</a>.</p>
-            {% if field_errors.consent %}<p class="field-error" id="consent-error">{{ field_errors.consent.0 }}</p>{% endif %}
-            <button class="button button-primary" type="submit">Отправить заявку</button>
+            </div></div>
+            <div class="retail-submit">
+              <div class="retail-consent">
+                <label class="choice consent-choice">
+                  <input id="id_consent" type="checkbox" name="consent" value="yes" required {% if values.consent %}checked{% endif %} {% if field_errors.consent %}aria-invalid="true" aria-describedby="consent-error"{% endif %}>
+                  <span>Даю <a href="{{ submission.consent_url }}">согласие на обработку персональных данных</a> для рассмотрения заявки.</span>
+                </label>
+                <p class="field-hint">Порядок обработки данных описан в <a href="{% url 'content:privacy' %}">Политике обработки персональных данных</a>.</p>
+                {% if field_errors.consent %}<p class="field-error" id="consent-error">{{ field_errors.consent.0 }}</p>{% endif %}
+              </div>
+              <button class="button button-primary" type="submit">Отправить заявку</button>
+            </div>
           </form>
         </section>
       {% else %}
@@ -132,6 +145,6 @@
   </div>
 {% endblock %}
 {% block scripts %}
-  <script src="{% static 'js/cart.js' %}?v=2026-10-02-4" defer></script>
+  <script src="{% static 'js/cart.js' %}?v=2026-10-27-1" defer></script>
   <script src="{% static 'js/checkout.js' %}" defer></script>
 {% endblock %}

@@ -1,5 +1,6 @@
 """HTML rendering and response presentation for the retail cart."""
 
+from django.db.models import prefetch_related_objects
 from django.shortcuts import render
 from django.urls import reverse
 
@@ -28,6 +29,7 @@ def render_cart(
 ):
     state = get_cart_state(request)
     items = [item.copy() for item in state.items]
+    prefetch_related_objects([item["product"] for item in items], "images")
     submission = submission or retail_submission_fields(
         request,
         state,
@@ -62,6 +64,11 @@ def render_cart(
                 "meta_robots": "noindex, nofollow" if status >= 400 else "index, follow",
                 "cart_items": items,
                 "cart_total": state.total,
+                "cart_weight": (
+                    sum(item["weight"] for item in items)
+                    if state.total_is_valid and not any(item.get("weight_errors") for item in items)
+                    else None
+                ),
                 "cart_total_is_valid": state.total_is_valid,
                 "cart_issues": state.has_issues,
                 "cart_issues_message": CART_ISSUES_MESSAGE,

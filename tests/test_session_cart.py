@@ -94,6 +94,8 @@ class SessionCartTests(TestCase):
         cart = client.get(reverse("orders:cart"))
         self.assertContains(cart, 'value="5"')
         self.assertContains(cart, "500,00 ₽")
+        self.assertEqual(cart.context["cart_weight"], Decimal("5"))
+        self.assertContains(cart, "Желаемый вес: 5 кг")
         self.assertContains(cart, 'aria-label="Корзина, товаров: 1"')
 
     # В пустой корзине и после добавления 3 кг карточка предлагает целый 1 кг

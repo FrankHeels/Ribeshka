@@ -1,23 +1,43 @@
 {% extends "base.html" %}
 {% load static %}
-{% block body_class %}contacts-page{% endblock %}
+{% block body_class %}contacts-page photo-page{% endblock %}
+{% block breadcrumbs %}{% endblock %}
 {% block content %}
-  <section class="contacts-panel" aria-labelledby="contacts-title">
-    <header class="contacts-heading"><h1 id="contacts-title">{{ page_title }}</h1></header>
+  <header class="page-heading photo-hero">
+    {% include "partials/hero-photo.html" %}
+    {% include "partials/breadcrumbs.html" %}
+    <h1 id="contacts-title">{{ page_title }}</h1>
+    <p>Поможем выбрать рыбу и согласовать получение заказа.</p>
+  </header>
+  <div class="contact-layout">
+  <section class="contacts-panel cream-panel" aria-labelledby="contact-details-title">
+    <h2 id="contact-details-title">Наши контакты</h2>
     <div class="contacts-grid">
       <div class="contacts-primary">
-        {% if site_settings.phone_primary %}<a class="contacts-phone" href="tel:{{ site_settings.phone_primary|cut:' '|cut:'-'|cut:'('|cut:')' }}">{{ site_settings.phone_primary }}</a>{% endif %}
-        {% if site_settings.email %}<a class="contacts-email" href="mailto:{{ site_settings.email }}">{{ site_settings.email }}</a>{% endif %}
-        {% include "partials/site-links.html" %}
+        {% if site_settings.phone_primary %}<div class="contact-detail">
+          <span class="contact-detail-icon">{% include "partials/ui-icon.html" with name="phone" %}</span>
+          <div class="contact-detail-copy"><p class="contact-detail-label">Телефон</p><a class="contacts-phone" href="tel:{{ site_settings.phone_primary|cut:' '|cut:'-'|cut:'('|cut:')' }}">{{ site_settings.phone_primary }}</a></div>
+        </div>{% endif %}
+        {% if site_settings.email %}<div class="contact-detail">
+          <span class="contact-detail-icon">{% include "partials/ui-icon.html" with name="mail" %}</span>
+          <div class="contact-detail-copy"><p class="contact-detail-label">Электронная почта</p><a class="contacts-email" href="mailto:{{ site_settings.email }}">{{ site_settings.email }}</a></div>
+        </div>{% endif %}
       </div>
       {% if site_settings.opening_hours or site_settings.address %}<div class="contacts-schedule">
-        {% if site_settings.opening_hours %}<div>{{ site_settings.opening_hours|linebreaks }}</div>{% endif %}
-        {% if site_settings.address %}<p>{{ site_settings.address }}</p>{% endif %}
+        {% if site_settings.opening_hours %}<div class="contact-detail">
+          <span class="contact-detail-icon">{% include "partials/ui-icon.html" with name="clock" %}</span>
+          <div class="contact-detail-copy"><p class="contact-detail-label">Время работы</p><div>{{ site_settings.opening_hours|linebreaks }}</div></div>
+        </div>{% endif %}
+        {% if site_settings.address %}<div class="contact-detail">
+          <span class="contact-detail-icon">{% include "partials/ui-icon.html" with name="pin" %}</span>
+          <div class="contact-detail-copy"><p class="contact-detail-label">Адрес</p><p>{{ site_settings.address }}</p></div>
+        </div>{% endif %}
       </div>{% endif %}
     </div>
+    {% include "partials/site-links.html" %}
     {% if not site_settings.phone_primary and not site_settings.email and not site_settings.address and not site_settings.opening_hours and not site_links %}<p class="contacts-empty">{{ content_notice }}</p>{% endif %}
   </section>
-  <section class="contact-map-section" aria-labelledby="contact-map-title" data-contact-map>
+  <section class="contact-map-section cream-panel" aria-labelledby="contact-map-title" data-contact-map>
     <div class="contact-map-heading">
       <div><h2 id="contact-map-title">Как нас найти</h2><p>{{ contact_location.address }}</p></div>
       <a class="button button-secondary" href="{{ contact_location.directions_url }}" target="_blank" rel="noopener noreferrer">Построить маршрут <span aria-hidden="true">{% include "partials/arrow-icon.html" with direction="up-right" %}</span></a>
@@ -37,6 +57,8 @@
       <a href="{{ contact_location.map_url }}" target="_blank" rel="noopener noreferrer">Открыть в Яндекс Картах</a>
     </div>
   </section>
+  </div>
+  <section class="contact-pickup"><h2>Самовывоз — по договорённости</h2><p>Перед приездом согласуйте место и время получения с менеджером.</p><a class="text-link" href="{% url 'content:delivery' %}">Доставка и самовывоз</a></section>
 {% endblock %}
 
 {% block scripts %}

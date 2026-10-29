@@ -1,0 +1,52 @@
+[
+  {
+    "file": "templates/home.html",
+    "before": "Копчёная, вяленая и свежемороженая рыба. Выбирайте любимые вкусы — для себя, семьи или бизнеса.",
+    "after": "Копчёная, вяленая и свежемороженая рыба для вашего стола и бизнеса."
+  },
+  {
+    "file": "templates/home.html",
+    "before": "<p class=\"section-kicker\">Ассортимент</p><h2 id=\"home-categories-title\">Подберите по вкусу</h2>",
+    "after": "<h2 id=\"home-categories-title\">Подберите рыбу по вкусу</h2>"
+  },
+  {
+    "file": "templates/home.html",
+    "before": "<p class=\"section-kicker\">Продукция</p>",
+    "after": ""
+  },
+  {
+    "file": "templates/home.html",
+    "before": "<p class=\"section-kicker\">Ассортимент в подготовке</p><h3>Товары появятся здесь</h3>",
+    "after": "<h3>Ассортимент в подготовке</h3>"
+  },
+  {
+    "file": "templates/home.html",
+    "before": "<p class=\"section-kicker\">О компании</p><h2 id=\"home-about-title\">Из Калининграда —<br>к вашему столу</h2>",
+    "after": "<h2 id=\"home-about-title\">Калининградская рыбёшка</h2>"
+  },
+  {
+    "file": "templates/home.html",
+    "before": "<p class=\"section-kicker\">Ваш заказ</p>",
+    "after": ""
+  },
+  {
+    "file": "templates/home.html",
+    "before": "<span class=\"home-link-kicker\">Получение</span>",
+    "after": ""
+  },
+  {
+    "file": "templates/home.html",
+    "before": "        <span class=\"home-link-kicker\">Связь</span>\n",
+    "after": ""
+  },
+  {
+    "file": "templates/content/delivery.html",
+    "before": "        <p class=\"section-kicker\">География доставки</p>\n",
+    "after": ""
+  },
+  {
+    "file": "templates/orders/cart.html",
+    "before": "> · Желаемый вес:",
+    "after": ">Желаемый вес:"
+  }
+]
