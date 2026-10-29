@@ -1,0 +1,29 @@
+[
+ {
+  "mode": "redesign",
+  "depth": "polish",
+  "scope": "site",
+  "date": "2026-10-29",
+  "prompt": "Усовершенствовать новый редизайн Ribeshka39 с Hallmark, сохранив принятый дизайн-код и предыдущие правки.",
+  "theme": "brand",
+  "baseline": "4dce293",
+  "branch": "codex/design-tool-test",
+  "waived": [
+   "39b",
+   "49b",
+   "71"
+  ],
+  "review": "in-thread",
+  "verification": {
+   "django_tests": 53,
+   "hero_checks": 32,
+   "layout_checks": 16,
+   "field_and_overflow_checks": 12,
+   "raw_fail": 1,
+   "raw_fail_reason": "Rotating hidden security token values; all field names and nonempty hidden controls independently verified.",
+   "reflex_open": 0,
+   "warnings_reviewed": 13
+  },
+  "compare": ".hallmark/compare.html"
+ }
+]

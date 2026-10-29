@@ -55,5 +55,39 @@
   --radius-panel: 1rem;
   --radius: var(--radius-control);
   --header-height: 88px;
-  --motion-fast: 180ms ease;
+  --motion-fast: 180ms var(--ease-out);
+  /* Hallmark polish: preserve brand values and name every surface role. */
+  --overlay-page: rgb(25 27 25 / 84%);
+  --tint-hover: rgb(215 183 123 / 8%);
+  --surface-legal-nav: rgb(24 17 13 / 72%);
+  --tint-selected: rgb(215 183 123 / 10%);
+  --line-map-swatch: rgb(255 255 255 / 40%);
+  --zone-kaliningrad: #1e98ff;
+  --zone-outer: #ed4543;
+  --zone-guryevsk: #1bad03;
+  --ink-map: #21160f;
+  --line-on-cream: rgb(120 82 31 / 24%);
+  --surface-selection-on-cream: #e8dcc7;
+  --error-on-cream: #982f24;
+  --error-surface-on-cream: #f6ded5;
+  --disabled-on-cream: #ded6c8;
+  --shadow-dropdown: rgb(25 27 25 / 20%);
+  --mask-opaque: var(--color-graphite);
+  --mask-dense: rgb(25 27 25 / 85%);
+  --mask-soft: rgb(25 27 25 / 35%);
+  --overlay-text-dense: rgb(25 27 25 / 97%);
+  --overlay-text-mid: rgb(25 27 25 / 60%);
+  --overlay-image-clear: rgb(25 27 25 / 4%);
+  --overlay-mobile-top: rgb(25 27 25 / 98%);
+  --overlay-mobile-copy: rgb(25 27 25 / 91%);
+  --overlay-mobile-mid: rgb(25 27 25 / 50%);
+  --overlay-mobile-bottom: rgb(25 27 25 / 5%);
+  --overlay-info-copy: rgb(25 27 25 / 96%);
+  --overlay-info-mid: rgb(25 27 25 / 73%);
+  --overlay-info-image: rgb(25 27 25 / 35%);
+  --surface-raised: #242823;
+  --color-focus: #edc981;
+  --focus-on-cream: #78521f;
+  --ease-out: cubic-bezier(.2, .7, .3, 1);
+
 }

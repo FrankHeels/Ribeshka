@@ -1,0 +1,29 @@
+{
+  "scanned": "2026-10-29",
+  "findings": {
+    "fonts": "Lora / Manrope, frontend/brand-tokens.css:39-42; local WOFF2 frontend/fonts.css",
+    "palette": "Graphite, cream, amber; frontend/brand-tokens.css:4-17",
+    "motion": "No animation library; CSS reduced-motion fallback frontend/input.css",
+    "spacing": "Capped 75rem container; brand-tokens.css:49-58",
+    "framework": "Django Templates + progressive JS; CODING_STANDARDS.md:5-7",
+    "product": "http://localhost:8000/; existing user-owned server"
+  },
+  "preserve": [
+    "All prior user feedback",
+    "448px shared information-page photograph",
+    "Photo below header with breadcrumbs on top",
+    "Compact cart, delivery map, footer, recommendation cards",
+    "Real brand, assets, data, links and form wiring"
+  ],
+  "introduce": [
+    "Hallmark polish: consistent tokens, quiet surfaces, stronger focus and selected states",
+    "Before/after evidence"
+  ],
+  "baseline_commit": "4dce293",
+  "excluded_user_work": [
+    "docs/moysklad-operations.md",
+    "docs/wiki/INDEX.md",
+    "docs/moysklad-activation-2026-10-26.md",
+    "new-references/"
+  ]
+}

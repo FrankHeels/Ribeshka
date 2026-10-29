@@ -51,7 +51,7 @@
         </div>
         <aside class="cart-summary cream-panel" aria-labelledby="cart-summary-title">
           <h2 id="cart-summary-title">Ваш заказ</h2>
-          <p data-cart-meta>Позиций: {{ cart_items|length }}{% if cart_weight != None %}<span data-cart-weight-summary> · Желаемый вес: {{ cart_weight|floatformat:0 }} кг</span>{% endif %}</p>
+          <p data-cart-meta>Позиций: {{ cart_items|length }}{% if cart_weight != None %}<span data-cart-weight-summary>Желаемый вес: {{ cart_weight|floatformat:0 }} кг</span>{% endif %}</p>
           <p data-cart-total data-cart-total-available="{% if cart_total_is_valid %}true{% else %}false{% endif %}"{% if not cart_total_is_valid %} class="is-unavailable"{% endif %}>
             <span>Предварительная сумма</span>
             <strong class="cart-total-value" data-cart-total-value{% if not cart_total_is_valid %} aria-hidden="true"{% endif %}>{% if cart_total_is_valid %}{{ cart_total|floatformat:2 }} ₽{% else %}—{% endif %}</strong>
