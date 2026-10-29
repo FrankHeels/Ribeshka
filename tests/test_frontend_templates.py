@@ -148,3 +148,13 @@ class FrontendTemplateTests(TestCase):
         )
         self.assertNotIn('name="need"', wholesale)
         self.assertNotIn("Опишите потребность", wholesale)
+
+    def test_product_description_follows_purchase_without_recommendations(self):
+        product = {**self.product, "description": "Уникальное описание продукта."}
+        html = self.render("catalog/product.html", {"product": product, "initial_weight": "1", "forms_enabled": True})
+        self.assertEqual(html.count("Уникальное описание продукта."), 1)
+        self.assertLess(html.index('class="product-title"'), html.index('class="product-gallery"'))
+        self.assertLess(html.index('class="product-order-form"'), html.index('id="product-description-title"'))
+        after_description = html.split('id="product-description-title"', 1)[1]
+        self.assertIn('<footer class="site-footer">', after_description)
+        self.assertNotIn('class="product-card', after_description)

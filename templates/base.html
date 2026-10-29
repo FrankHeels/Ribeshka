@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#18110D">
+    <meta name="theme-color" content="#191b19">
     <meta name="yandex-verification" content="e2f308037dd1b452" />
     <meta name="google-site-verification" content="xF1HdCWZu_6l8QsClMwQGW1I5kLJ2JVJsci5YJSZP5s" />
     <meta name="description" content="{{ meta_description|default:'Ассортимент рыбной продукции и информация о способах заказа.' }}">
@@ -12,9 +12,9 @@
     {% if canonical_url and "noindex" not in meta_robots|default:""|lower %}<link rel="canonical" href="{{ canonical_url }}">{% endif %}
     <title>{% if seo_title %}{{ seo_title }}{% elif page_title and page_title != "Рыбная продукция" %}{{ page_title }} — Калининградская рыбёшка{% else %}Калининградская рыбёшка{% endif %}</title>
     <link rel="icon" type="image/png" href="{% static 'img/brand-logo.png' %}">
-    <link rel="preload" href="{% static 'fonts/cormorant-garamond-normal-cyrillic.woff2' %}" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="{% static 'fonts/golos-text-normal-cyrillic.woff2' %}" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="{% static 'css/site.css' %}?v=2026-10-26-1">
+    <link rel="preload" href="{% static 'fonts/lora-normal-cyrillic.woff2' %}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{% static 'fonts/manrope-normal-cyrillic.woff2' %}" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{% static 'css/site.css' %}?v=2026-10-27-10">
     {% block extra_head %}{% endblock %}
   </head>
   <body class="site-body {% block body_class %}{% endblock %}">
@@ -23,6 +23,7 @@
       <div class="site-header-inner page-width">
         <a class="site-name" href="{% url 'home' %}" aria-label="Калининградская рыбёшка — главная">
           <img class="brand-logo" src="{% static 'img/brand-logo.png' %}" alt="Калининградская рыбёшка" width="1362" height="1155">
+          <span class="brand-caption">Калининградская<br>рыбёшка</span>
         </a>
         <nav class="site-navigation" aria-label="Основная навигация">
           {% include "partials/assortment-menu.html" %}
@@ -50,16 +51,9 @@
       </div>
     </header>
 
-    {% if breadcrumbs %}
-      <nav class="breadcrumbs page-width" aria-label="Хлебные крошки">
-        <ol>
-          <li><a href="{% url 'home' %}">Главная</a></li>
-          {% for crumb in breadcrumbs %}
-            <li>{% if crumb.url %}<a href="{{ crumb.url }}">{{ crumb.label }}</a>{% else %}<span aria-current="page">{{ crumb.label }}</span>{% endif %}</li>
-          {% endfor %}
-        </ol>
-      </nav>
-    {% endif %}
+    {% block breadcrumbs %}
+      {% include "partials/breadcrumbs.html" with breadcrumbs_width="page-width" %}
+    {% endblock %}
 
     <main id="main-content" class="page-width main-content">
       {% if messages %}

@@ -1,0 +1,8 @@
+<section class="request-steps" aria-labelledby="request-steps-title">
+  <h2 id="request-steps-title">{% if wholesale %}Как начинаем сотрудничество{% else %}Как получить заказ{% endif %}</h2>
+  <ol class="steps-list">
+    <li><span class="step-number">01</span><h3>{% if wholesale %}Оставьте заявку{% else %}Выберите товары{% endif %}</h3><p>{% if wholesale %}Расскажите, как к вам обратиться и связаться с вами.{% else %}Укажите желаемый вес в килограммах.{% endif %}</p></li>
+    <li><span class="step-number">02</span><h3>{% if wholesale %}Обсудим ассортимент{% else %}Оставьте контакты{% endif %}</h3><p>{% if wholesale %}Подберём продукцию под задачи вашего бизнеса.{% else %}Выберите доставку или самовывоз и отправьте заявку.{% endif %}</p></li>
+    <li><span class="step-number">03</span><h3>Согласуем условия</h3><p>Уточним наличие, объём, стоимость и удобное получение.</p></li>
+  </ol>
+</section>

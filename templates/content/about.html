@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block body_class %}about-page photo-page{% endblock %}
+{% block breadcrumbs %}{% endblock %}
 {% block content %}
-  <header class="page-heading page-heading-narrow">
-    <p class="section-kicker">Калининградская Рыбёшка</p>
-    <h1>{{ page_title }}</h1>
+  <header class="page-heading photo-hero">
+    {% include "partials/hero-photo.html" %}
+    {% include "partials/breadcrumbs.html" %}
+    <h1>{% if page_title == "О компании" %}Хорошая рыба<br>собирает за столом{% else %}{{ page_title }}{% endif %}</h1>
     {% if page_body %}
       <div class="page-lead rich-copy">{{ page_body|linebreaks }}</div>
     {% else %}
@@ -12,7 +15,7 @@
     {% endif %}
   </header>
 
-  <section class="company-story" aria-labelledby="company-assortment-title">
+  <section class="company-story cream-panel" aria-labelledby="company-assortment-title">
     <figure class="company-story-image">
       <img src="{% static 'img/about/seafood-table.webp' %}" width="1536" height="1024" alt="Копчёная скумбрия и ломтики солёной красной рыбы на деревянном столе" loading="lazy" decoding="async">
     </figure>

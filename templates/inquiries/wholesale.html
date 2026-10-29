@@ -1,10 +1,14 @@
 {% extends "base.html" %}
+{% block body_class %}wholesale-page photo-page{% endblock %}
+{% block breadcrumbs %}{% endblock %}
 {% block content %}
-  <header class="page-heading page-heading-narrow">
-    <p class="section-kicker">Рыба для вашего бизнеса</p>
-    <h1>Вкусное начало сотрудничества</h1>
+  <header class="page-heading photo-hero">
+    {% include "partials/hero-photo.html" %}
+    {% include "partials/breadcrumbs.html" %}
+    <h1>Рыба для вашего бизнеса</h1>
     <p>«Калининградская Рыбёшка» приглашает к оптовому сотрудничеству магазины, кафе и рестораны. Предлагаем качественную рыбную продукцию и выгодные условия, которые обсудим под задачи вашего бизнеса.</p>
   </header>
+  {% include "partials/request-steps.html" with wholesale=True %}
   {% include "partials/error-summary.html" %}
   <div class="wholesale-layout">
     <section class="wholesale-intro" aria-labelledby="wholesale-intro-title">
@@ -15,7 +19,7 @@
       <p>Начните с короткого знакомства. Вместе найдём удобный формат сотрудничества.</p>
       <a class="text-link" href="{% url 'home' %}#assortment">Познакомиться с ассортиментом</a>
     </section>
-    <section class="form-panel wholesale-form" aria-labelledby="wholesale-form-title">
+    <section class="form-panel wholesale-form cream-panel" aria-labelledby="wholesale-form-title">
       <h2 id="wholesale-form-title">Получить оптовый прайс-лист</h2>
       <p class="wholesale-form-note">Укажите, как к вам обратиться и по какому номеру связаться. Прайс-лист и условия обсудим лично.</p>
       <form class="stacked-form stacked-form-narrow" method="post" action="{% url 'inquiries:wholesale' %}">

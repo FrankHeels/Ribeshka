@@ -53,6 +53,8 @@
     const invalid = states.some((line) => line.input.hasAttribute("aria-invalid"));
     const failed = states.some((line) => line.error || line.removing);
     const summaryUnavailable = total?.dataset.cartTotalAvailable !== "true" || failed || invalid;
+    const weightSummary = cart.querySelector("[data-cart-weight-summary]");
+    if (weightSummary) weightSummary.hidden = summaryUnavailable;
     if (total && totalValue) {
       total.classList.toggle("is-unavailable", summaryUnavailable);
       if (summaryUnavailable) {
@@ -136,6 +138,9 @@
     const hasPendingWeights = [...lines.values()].some((line) => line.dirty || line.removing);
     if (!hasPendingWeights && currentTotal && nextTotal && currentTotalRow && nextTotalRow) {
       currentTotal.innerHTML = nextTotal.innerHTML;
+      const currentMeta = cart.querySelector("[data-cart-meta]");
+      const nextMeta = next.querySelector("[data-cart-meta]");
+      if (currentMeta && nextMeta) currentMeta.innerHTML = nextMeta.innerHTML;
       currentTotalRow.dataset.cartTotalAvailable = nextTotalRow.dataset.cartTotalAvailable;
     }
 
