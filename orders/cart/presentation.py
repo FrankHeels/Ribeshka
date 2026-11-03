@@ -61,7 +61,7 @@ def render_cart(
             {
                 "page_title": "Корзина",
                 "meta_description": "Состав заявки на рыбную продукцию.",
-                "meta_robots": "noindex, nofollow" if status >= 400 else "index, follow",
+                "meta_robots": "noindex, nofollow",
                 "cart_items": items,
                 "cart_total": state.total,
                 "cart_weight": (
