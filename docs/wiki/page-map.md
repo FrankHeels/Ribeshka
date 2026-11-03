@@ -7,7 +7,7 @@
 | `/` | Главная: hero, открытые категории, до двух рекомендаций, информация о компании, шаги заявки, получение и контакты | [`../frontend-contract.md`](../frontend-contract.md), `content.views.home`, `templates/home.html` |
 | `/catalog/categories/<slug>/` | Открытая категория, до 12 товаров на странице | `catalog.views.category`, `templates/catalog/category.html` |
 | `/catalog/products/<slug>/` | Карточка опубликованного товара и выбор желаемого веса | [`cart.md`](cart.md), `catalog.views.product`, `templates/catalog/product.html` |
-| `/cart/` | Сессионная корзина и розничная форма заявки | [`cart.md`](cart.md), [`public-forms.md`](public-forms.md), [`../frontend-contract.md`](../frontend-contract.md) |
+| `/cart/` | Сессионная корзина и розничная форма заявки; страница закрыта для индексации и кэширования | [`cart.md`](cart.md), [`public-forms.md`](public-forms.md), [`../frontend-contract.md`](../frontend-contract.md) |
 | `/checkout/` | GET перенаправляет к форме в корзине; POST — совместимый путь отправки розничной заявки | [`public-forms.md`](public-forms.md), `orders.views.checkout` |
 | `/wholesale/` | Условия сотрудничества, пояснение о личном ответе с прайс-листом и отдельная контактная форма | [`public-forms.md`](public-forms.md), [`../frontend-contract.md`](../frontend-contract.md), `inquiries.views.wholesale` |
 | `/about/` | Текст об ассортименте, качестве и сервисе, тематическое изображение, переходы в ассортимент и опт; редактируемый текст страницы сохраняется во вступлении | [`../frontend-contract.md`](../frontend-contract.md), `content.views.about`, `templates/content/about.html` |
@@ -20,6 +20,6 @@
 
 В sitemap входят главная, оптовая форма, about/delivery/contacts, опубликованные категории с доступными товарами и опубликованные товары. Юридические страницы и страницы результата исключены. Маршруты и фильтры заданы в [`fishsite/urls.py`](../../fishsite/urls.py), [`catalog/urls.py`](../../catalog/urls.py), [`content/urls.py`](../../content/urls.py), [`orders/urls.py`](../../orders/urls.py), [`inquiries/urls.py`](../../inquiries/urls.py); состав sitemap — в [`content/views.py`](../../content/views.py).
 
-`/robots.txt` доступен через GET/HEAD как UTF-8 `text/plain`: разрешает обход сайта и указывает абсолютный адрес `/sitemap.xml`. Ограничения индексации юридических страниц и результатов заявок по-прежнему задаются их `noindex`, а не запретом обхода.
+`/robots.txt` доступен через GET/HEAD как UTF-8 `text/plain`: разрешает обход сайта и указывает абсолютный адрес `/sitemap.xml`. Ограничения индексации корзины, юридических страниц и результатов заявок задаются их `noindex`, а не запретом обхода.
 
 Страницы, входящие в sitemap, выводят абсолютный `rel="canonical"` без рекламных и прочих посторонних query-параметров. Для категории первая страница, включая `?page=1`, указывает на адрес без query; следующие — на собственный `?page=N`. Используется фактическая страница пагинатора, в том числе при некорректном или выходящем за диапазон входном номере. Контракт метаданных — в [`../frontend-contract.md`](../frontend-contract.md).

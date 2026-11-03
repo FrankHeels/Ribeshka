@@ -17,10 +17,13 @@ from .request_flow.handlers import submit_retail_request
 @require_http_methods(["GET", "HEAD", "POST"])
 def cart(request):
     if request.method in {"GET", "HEAD"}:
-        return render_cart(request)
-    if request.POST.get("action") == "submit":
-        return submit_retail_request(request)
-    return handle_cart_action(request)
+        response = render_cart(request)
+    elif request.POST.get("action") == "submit":
+        response = submit_retail_request(request)
+    else:
+        response = handle_cart_action(request)
+    response["X-Robots-Tag"] = "noindex, nofollow"
+    return _private_no_store(response)
 
 
 @public_form_database_fallback("orders:cart", "Вернуться к корзине")
