@@ -7,7 +7,7 @@
 <h1 align="center">🐟 Рыбёшка39</h1>
 
 <p align="center">
-  <strong>Витрина рыбного магазина с розничной корзиной и оптовыми заявками</strong><br />
+  <strong>Витрина настоящего рыбного магазина с розничной корзиной и оптовыми заявками</strong><br />
   От каталога и сохранения обращений до уведомлений и интеграции с МойСклад.
 </p>
 
@@ -205,7 +205,7 @@ npm --prefix frontend run watch:css
 ---
 
 <p align="center">
-  <sub>Создано как практический проект о бизнес-логике, интеграциях и надёжной работе с данными.</sub>
+  <sub>Создано как коммерческий проект о бизнес-логике, интеграциях и надёжной работе с данными.</sub>
 </p>
 <p align="center">
   <a href="https://github.com/FrankHeels"><img src="https://img.shields.io/badge/GitHub-FrankHeels-181717?style=for-the-badge&amp;logo=github&amp;logoColor=white" alt="GitHub: FrankHeels" /></a>
